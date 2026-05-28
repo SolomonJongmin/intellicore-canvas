@@ -1,8 +1,9 @@
 // Components
-export { Canvas } from './Canvas';
+export { Canvas, MiniMapInner } from './Canvas';
 
 // Hooks
 export { useCanvas } from './hooks/useCanvas';
+export { useCanvasHistory } from './hooks/useCanvasHistory';
 export { useViewport } from './hooks/useViewport';
 
 // Utilities

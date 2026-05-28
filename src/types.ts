@@ -41,6 +41,7 @@ export interface Edge {
   type?: 'bezier' | 'straight' | 'step';
   label?: string;
   animated?: boolean;
+  selected?: boolean;
   style?: CSSProperties;
   data?: Record<string, unknown>;
 }
