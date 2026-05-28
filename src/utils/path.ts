@@ -28,3 +28,27 @@ export function getPortPosition(
     case 'right': return { x: nodePos.x + nodeWidth, y: nodePos.y + nodeHeight * offset };
   }
 }
+
+export function getSmartBezierPath(
+  source: Point,
+  target: Point,
+  sourceDir: 'top' | 'bottom' | 'left' | 'right',
+  targetDir: 'top' | 'bottom' | 'left' | 'right',
+): string {
+  const dist = Math.sqrt((target.x - source.x) ** 2 + (target.y - source.y) ** 2);
+  const offset = Math.max(30, dist * 0.4);
+
+  const sc = getControlPoint(source, sourceDir, offset);
+  const tc = getControlPoint(target, targetDir, offset);
+
+  return `M ${source.x} ${source.y} C ${sc.x} ${sc.y}, ${tc.x} ${tc.y}, ${target.x} ${target.y}`;
+}
+
+function getControlPoint(point: Point, dir: 'top' | 'bottom' | 'left' | 'right', offset: number): Point {
+  switch (dir) {
+    case 'top': return { x: point.x, y: point.y - offset };
+    case 'bottom': return { x: point.x, y: point.y + offset };
+    case 'left': return { x: point.x - offset, y: point.y };
+    case 'right': return { x: point.x + offset, y: point.y };
+  }
+}

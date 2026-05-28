@@ -7,7 +7,7 @@ export { useCanvasHistory } from './hooks/useCanvasHistory';
 export { useViewport } from './hooks/useViewport';
 
 // Utilities
-export { getBezierPath, getStraightPath, getStepPath, getPortPosition } from './utils/path';
+export { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
 export { applyNodeChanges, applyEdgeChanges } from './utils/changes';
 
 // Types

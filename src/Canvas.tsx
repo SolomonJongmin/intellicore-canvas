@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect, MouseEvent, DragEvent } from 'react';
 import type { CanvasProps, Node, Edge, Point, Connection } from './types';
 import { useViewport } from './hooks/useViewport';
-import { getBezierPath, getStraightPath, getStepPath, getPortPosition } from './utils/path';
+import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
 
 export function Canvas({
   nodes,
@@ -234,20 +234,45 @@ export function Canvas({
     onDragOver?.(e as any);
   }, [onDragOver]);
 
-  // Edge path
+  // Edge path - auto-detect best port direction based on relative node positions
   function calcEdgePath(edge: Edge): string {
     const sourceNode = nodes.find((n) => n.id === edge.source);
     const targetNode = nodes.find((n) => n.id === edge.target);
     if (!sourceNode || !targetNode) return '';
     const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
     const tw = targetNode.width || 140, th = targetNode.height || 40;
-    const source = getPortPosition(sourceNode.position, sw, sh, 'bottom');
-    const target = getPortPosition(targetNode.position, tw, th, 'top');
+
+    // Calculate centers
+    const sCx = sourceNode.position.x + sw / 2;
+    const sCy = sourceNode.position.y + sh / 2;
+    const tCx = targetNode.position.x + tw / 2;
+    const tCy = targetNode.position.y + th / 2;
+
+    const dx = tCx - sCx;
+    const dy = tCy - sCy;
+
+    // Determine best exit/entry direction based on relative position
+    let sourceDir: 'top' | 'bottom' | 'left' | 'right';
+    let targetDir: 'top' | 'bottom' | 'left' | 'right';
+
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // Primarily vertical
+      if (dy > 0) { sourceDir = 'bottom'; targetDir = 'top'; }
+      else { sourceDir = 'top'; targetDir = 'bottom'; }
+    } else {
+      // Primarily horizontal
+      if (dx > 0) { sourceDir = 'right'; targetDir = 'left'; }
+      else { sourceDir = 'left'; targetDir = 'right'; }
+    }
+
+    const source = getPortPosition(sourceNode.position, sw, sh, sourceDir);
+    const target = getPortPosition(targetNode.position, tw, th, targetDir);
+
     const type = edge.type || defaultEdgeType;
     switch (type) {
       case 'step': return getStepPath(source, target);
       case 'straight': return getStraightPath(source, target);
-      default: return getBezierPath(source, target);
+      default: return getSmartBezierPath(source, target, sourceDir, targetDir);
     }
   }
 
@@ -258,9 +283,9 @@ export function Canvas({
     if (!sourceNode || !targetNode) return null;
     const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
     const tw = targetNode.width || 140, th = targetNode.height || 40;
-    const s = getPortPosition(sourceNode.position, sw, sh, 'bottom');
-    const t = getPortPosition(targetNode.position, tw, th, 'top');
-    return { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+    const sx = sourceNode.position.x + sw / 2, sy = sourceNode.position.y + sh / 2;
+    const tx = targetNode.position.x + tw / 2, ty = targetNode.position.y + th / 2;
+    return { x: (sx + tx) / 2, y: (sy + ty) / 2 };
   }
 
   const transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
