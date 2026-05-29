@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { Node, Edge, Connection, Point } from '../types';
-import { getConnectedEdges, getIncomers, getOutgoers, getClosestNode } from '../utils/graph';
+import { getConnectedEdges, getIncomers, getOutgoers, getClosestNode, getEdgeAtPoint } from '../utils/graph';
 
 interface UseInteractionsOptions {
   nodes: Node[];
@@ -79,12 +79,29 @@ export function useInteractions({ nodes, edges, setNodes, setEdges }: UseInterac
     }]);
   }, [edges, setEdges]);
 
+  // --- Insert Node On Edge (drop node onto edge) ---
+  const insertNodeOnEdge = useCallback((nodeId: string, position: Point, threshold = 20): boolean => {
+    const edge = getEdgeAtPoint(position, edges, nodes, threshold, nodeId);
+    if (!edge) return false;
+
+    setEdges((prev) => {
+      const filtered = prev.filter((e) => e.id !== edge.id);
+      return [
+        ...filtered,
+        { id: `e-${edge.source}-${nodeId}-${Date.now()}`, source: edge.source, target: nodeId },
+        { id: `e-${nodeId}-${edge.target}-${Date.now() + 1}`, source: nodeId, target: edge.target },
+      ];
+    });
+    return true;
+  }, [nodes, edges, setEdges]);
+
   return {
     onConnectStart,
     onConnectEnd,
     onNodesDelete,
     getProximityConnection,
     connectToProximity,
+    insertNodeOnEdge,
     connectStartRef,
   };
 }

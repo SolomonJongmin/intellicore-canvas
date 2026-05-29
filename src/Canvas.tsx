@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect, MouseEvent, DragEvent, Compon
 import type { CanvasProps, Node, Edge, Point, Connection, ConnectionLineProps } from './types';
 import { useViewport } from './hooks/useViewport';
 import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
+import { getEdgeAtPoint } from './utils/graph';
 import { DefaultConnectionLine } from './components/ConnectionLine';
 import { isLicensed } from './license';
 
@@ -21,6 +22,7 @@ export function Canvas({
   onDragOver,
   onNodesDelete,
   onEdgesDelete,
+  onNodeDragStop,
   onReconnect,
   onReconnectStart,
   onReconnectEnd,
@@ -30,6 +32,7 @@ export function Canvas({
   defaultEdgeType = 'bezier',
   snapToGrid = false,
   gridSize = 20,
+  dropOnEdge = false,
   minZoom = 0.1,
   maxZoom = 4,
   fitView: fitViewProp = false,
@@ -230,9 +233,33 @@ export function Canvas({
       return;
     }
 
+    // Fire onNodeDragStop if a node was being dragged
+    if (dragNodeId.current) {
+      const draggedNode = nodes.find((n) => n.id === dragNodeId.current);
+      if (draggedNode) {
+        // Drop on edge: auto-insert node into edge
+        if (dropOnEdge) {
+          const threshold = typeof dropOnEdge === 'number' ? dropOnEdge : 20;
+          const center: Point = {
+            x: draggedNode.position.x + (draggedNode.width || 140) / 2,
+            y: draggedNode.position.y + (draggedNode.height || 40) / 2,
+          };
+          const edge = getEdgeAtPoint(center, edges, nodes, threshold, draggedNode.id);
+          if (edge) {
+            onEdgesChange?.([
+              { type: 'remove', id: edge.id },
+              { type: 'add', edge: { id: `e-${edge.source}-${draggedNode.id}-${Date.now()}`, source: edge.source, target: draggedNode.id } },
+              { type: 'add', edge: { id: `e-${draggedNode.id}-${edge.target}-${Date.now() + 1}`, source: draggedNode.id, target: edge.target } },
+            ]);
+          }
+        }
+        onNodeDragStop?.(e as any, draggedNode);
+      }
+    }
+
     dragNodeId.current = null;
     handlePanEnd();
-  }, [handlePanEnd, lasso, connecting, reconnecting, nodes, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd]);
+  }, [handlePanEnd, lasso, connecting, reconnecting, nodes, edges, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd, onNodeDragStop, dropOnEdge]);
 
   const handlePaneMouseDown = useCallback((e: MouseEvent) => {
     handlePanStart(e);

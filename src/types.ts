@@ -145,6 +145,7 @@ export interface CanvasProps {
   onDragOver?: (event: React.DragEvent) => void;
   onNodesDelete?: (nodes: Node[]) => void;
   onEdgesDelete?: (edges: Edge[]) => void;
+  onNodeDragStop?: (event: MouseEvent, node: Node) => void;
   onReconnect?: (oldEdge: Edge, newConnection: Connection) => void;
   onReconnectStart?: (event: MouseEvent, edge: Edge) => void;
   onReconnectEnd?: (event: MouseEvent, edge: Edge) => void;
@@ -154,6 +155,7 @@ export interface CanvasProps {
   defaultEdgeType?: EdgeType;
   snapToGrid?: boolean;
   gridSize?: number;
+  dropOnEdge?: boolean | number;
   minZoom?: number;
   maxZoom?: number;
   fitView?: boolean;

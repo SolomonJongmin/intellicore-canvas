@@ -30,7 +30,7 @@ export { useAutoLayout } from './hooks/useAutoLayout';
 // Utilities
 export { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
 export { applyNodeChanges, applyEdgeChanges } from './utils/changes';
-export { getConnectedEdges, getIncomers, getOutgoers, isIntersecting, getIntersectingNodes, getClosestNode } from './utils/graph';
+export { getConnectedEdges, getIncomers, getOutgoers, isIntersecting, getIntersectingNodes, getClosestNode, pointToSegmentDistance, getEdgeAtPoint } from './utils/graph';
 export { getOrthogonalPath, nodesToObstacles } from './utils/routing';
 
 // Types

@@ -94,6 +94,7 @@ export default function FlowEditor() {
           onDragOver={(e: any) => e.preventDefault()}
           nodeTypes={{ flow: FlowNodeComponent }}
           defaultEdgeType="straight"
+          dropOnEdge={20}
           snapToGrid
           gridSize={20}
           fitView

@@ -43,3 +43,47 @@ export function getClosestNode(position: Point, nodes: Node[], threshold: number
   }
   return closest;
 }
+
+/** Distance from a point to a line segment (ax,ay)-(bx,by) */
+export function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.sqrt((px - ax) ** 2 + (py - ay) ** 2);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  const projX = ax + t * dx;
+  const projY = ay + t * dy;
+  return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+}
+
+/**
+ * Find the closest edge to a point within a distance threshold.
+ * Uses source/target node centers as edge endpoints (line approximation).
+ */
+export function getEdgeAtPoint(
+  point: Point,
+  edges: Edge[],
+  nodes: Node[],
+  threshold: number = 20,
+  excludeNodeId?: string,
+): Edge | null {
+  let closest: Edge | null = null;
+  let minDist = threshold;
+  for (const edge of edges) {
+    // Skip edges connected to the excluded node
+    if (excludeNodeId && (edge.source === excludeNodeId || edge.target === excludeNodeId)) continue;
+    const sn = nodes.find((n) => n.id === edge.source);
+    const tn = nodes.find((n) => n.id === edge.target);
+    if (!sn || !tn) continue;
+    const sx = sn.position.x + (sn.width || 140) / 2;
+    const sy = sn.position.y + (sn.height || 40) / 2;
+    const tx = tn.position.x + (tn.width || 140) / 2;
+    const ty = tn.position.y + (tn.height || 40) / 2;
+    const dist = pointToSegmentDistance(point.x, point.y, sx, sy, tx, ty);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = edge;
+    }
+  }
+  return closest;
+}
