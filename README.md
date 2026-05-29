@@ -149,4 +149,4 @@ npm run dev
 
 ## 라이선스
 
-MIT
+UNLICENSED — 비공개 프로젝트. 무단 사용, 복제, 배포 금지.
