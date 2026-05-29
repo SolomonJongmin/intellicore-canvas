@@ -19,6 +19,12 @@ export function applyNodeChanges(changes: NodeChange[], nodes: Node[]): Node[] {
       case 'data':
         result = result.map((n) => n.id === change.id ? { ...n, data: { ...n.data, ...change.data } } : n);
         break;
+      case 'dimensions':
+        result = result.map((n) => n.id === change.id ? { ...n, width: change.width, height: change.height } : n);
+        break;
+      case 'rotation':
+        result = result.map((n) => n.id === change.id ? { ...n, rotation: change.rotation } : n);
+        break;
     }
   }
   return result;

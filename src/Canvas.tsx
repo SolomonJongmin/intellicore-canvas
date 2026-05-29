@@ -1,7 +1,8 @@
-import { useRef, useState, useCallback, useEffect, MouseEvent, DragEvent } from 'react';
-import type { CanvasProps, Node, Edge, Point, Connection } from './types';
+import { useRef, useState, useCallback, useEffect, MouseEvent, DragEvent, ComponentType } from 'react';
+import type { CanvasProps, Node, Edge, Point, Connection, ConnectionLineProps } from './types';
 import { useViewport } from './hooks/useViewport';
 import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
+import { DefaultConnectionLine } from './components/ConnectionLine';
 
 export function Canvas({
   nodes,
@@ -9,13 +10,22 @@ export function Canvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onConnectStart,
+  onConnectEnd,
   onNodeClick,
   onNodeDoubleClick,
   onEdgeClick,
   onPaneClick,
   onDrop,
   onDragOver,
+  onNodesDelete,
+  onEdgesDelete,
+  onReconnect,
+  onReconnectStart,
+  onReconnectEnd,
   nodeTypes = {},
+  edgeTypes = {},
+  connectionLineComponent,
   defaultEdgeType = 'bezier',
   snapToGrid = false,
   gridSize = 20,
@@ -38,6 +48,9 @@ export function Canvas({
 
   // Drag-to-connect state
   const [connecting, setConnecting] = useState<{ sourceId: string; sourcePort?: string; mouse: Point } | null>(null);
+
+  // Edge reconnect state
+  const [reconnecting, setReconnecting] = useState<{ edge: Edge; mouse: Point } | null>(null);
 
   // fitView on mount
   useEffect(() => {
@@ -64,25 +77,52 @@ export function Canvas({
     });
   }, [fitViewProp, nodes, setViewport]);
 
+  // Check if element matches dragHandle selector
+  const isDragHandle = useCallback((target: HTMLElement, node: Node): boolean => {
+    if (!node.dragHandle) return true; // No restriction
+    return target.closest(node.dragHandle) !== null;
+  }, []);
+
+  // Check if element has nodrag class
+  const isNoDrag = useCallback((target: HTMLElement): boolean => {
+    return target.closest('.nodrag') !== null;
+  }, []);
+
   // Node drag
   const handleNodeMouseDown = useCallback((e: MouseEvent, node: Node) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+
+    // Check nodrag — start connection instead
+    if (isNoDrag(target)) {
+      const rect = containerRef.current!.getBoundingClientRect();
+      const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
+      setConnecting({ sourceId: node.id, sourcePort: undefined, mouse: pos });
+      onConnectStart?.(e as any, { nodeId: node.id });
+      // Select the node
+      if (!node.selected) {
+        const deselect = nodes.filter((n) => n.selected && n.id !== node.id).map((n) => ({ type: 'select' as const, id: n.id, selected: false }));
+        onNodesChange?.([...deselect, { type: 'select', id: node.id, selected: true }]);
+      }
+      return;
+    }
+    // Check dragHandle
+    if (!isDragHandle(target, node)) return;
+
     dragNodeId.current = node.id;
     const rect = containerRef.current!.getBoundingClientRect();
     const canvasPos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     dragOffset.current = { x: canvasPos.x - node.position.x, y: canvasPos.y - node.position.y };
 
     if (e.shiftKey) {
-      // Multi-select toggle
       onNodesChange?.([{ type: 'select', id: node.id, selected: !node.selected }]);
     } else if (!node.selected) {
-      // Deselect others, select this
       const deselect = nodes.filter((n) => n.selected && n.id !== node.id).map((n) => ({ type: 'select' as const, id: n.id, selected: false }));
       onNodesChange?.([...deselect, { type: 'select', id: node.id, selected: true }]);
     }
     onNodeClick?.(e as any, node);
-  }, [screenToCanvas, onNodesChange, onNodeClick, nodes]);
+  }, [screenToCanvas, onNodesChange, onNodeClick, onConnectStart, nodes, isDragHandle, isNoDrag]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     handlePanMove(e);
@@ -103,7 +143,15 @@ export function Canvas({
       return;
     }
 
-    // Node drag (supports multi-drag)
+    // Edge reconnect
+    if (reconnecting) {
+      const rect = containerRef.current!.getBoundingClientRect();
+      const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
+      setReconnecting({ ...reconnecting, mouse: pos });
+      return;
+    }
+
+    // Node drag
     if (!dragNodeId.current) return;
     const rect = containerRef.current!.getBoundingClientRect();
     const canvasPos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
@@ -119,16 +167,15 @@ export function Canvas({
     const dx = x - draggedNode.position.x;
     const dy = y - draggedNode.position.y;
 
-    // Move all selected nodes together
     const selectedNodes = nodes.filter((n) => n.selected);
     if (selectedNodes.length > 1 && draggedNode.selected) {
       onNodesChange?.(selectedNodes.map((n) => ({ type: 'position' as const, id: n.id, position: { x: n.position.x + dx, y: n.position.y + dy } })));
     } else {
       onNodesChange?.([{ type: 'position', id: dragNodeId.current, position: { x, y } }]);
     }
-  }, [handlePanMove, screenToCanvas, snapToGrid, gridSize, onNodesChange, nodes, connecting]);
+  }, [handlePanMove, screenToCanvas, snapToGrid, gridSize, onNodesChange, nodes, connecting, reconnecting]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: MouseEvent) => {
     // Finish lasso
     if (lassoStart.current && lasso) {
       const minX = Math.min(lasso.start.x, lasso.end.x);
@@ -147,7 +194,6 @@ export function Canvas({
 
     // Finish connect
     if (connecting) {
-      // Find target node under mouse
       const target = nodes.find((n) => {
         const w = n.width || 140;
         const h = n.height || 40;
@@ -158,23 +204,43 @@ export function Canvas({
       if (target && onConnect) {
         onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id });
       }
+      onConnectEnd?.(e as any);
       setConnecting(null);
+      return;
+    }
+
+    // Finish edge reconnect
+    if (reconnecting) {
+      const target = nodes.find((n) => {
+        const w = n.width || 140;
+        const h = n.height || 40;
+        return reconnecting.mouse.x >= n.position.x && reconnecting.mouse.x <= n.position.x + w &&
+               reconnecting.mouse.y >= n.position.y && reconnecting.mouse.y <= n.position.y + h &&
+               n.id !== reconnecting.edge.source;
+      });
+      if (target) {
+        onReconnect?.(reconnecting.edge, { source: reconnecting.edge.source, target: target.id });
+      } else {
+        // Dropped on pane — delete edge
+        onEdgesChange?.([{ type: 'remove', id: reconnecting.edge.id }]);
+      }
+      onReconnectEnd?.(e as any, reconnecting.edge);
+      setReconnecting(null);
+      return;
     }
 
     dragNodeId.current = null;
     handlePanEnd();
-  }, [handlePanEnd, lasso, connecting, nodes, onNodesChange, onConnect]);
+  }, [handlePanEnd, lasso, connecting, reconnecting, nodes, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd]);
 
   const handlePaneMouseDown = useCallback((e: MouseEvent) => {
     handlePanStart(e);
     if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('ic-canvas-pane')) {
       if (e.button === 0 && !e.altKey) {
-        // Start lasso
         const rect = containerRef.current!.getBoundingClientRect();
         const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
         lassoStart.current = pos;
       }
-      // Deselect all
       onNodesChange?.(nodes.filter((n) => n.selected).map((n) => ({ type: 'select' as const, id: n.id, selected: false })));
       onEdgesChange?.(edges.filter((ed) => ed.selected).map((ed) => ({ type: 'select' as const, id: ed.id, selected: false })));
       onPaneClick?.(e);
@@ -190,27 +256,41 @@ export function Canvas({
     if (edge) onEdgeClick?.(e as any, edge);
   }, [nodes, edges, onNodesChange, onEdgesChange, onEdgeClick]);
 
+  // Edge reconnect start (double-click or drag edge endpoint)
+  const handleEdgeReconnectStart = useCallback((e: MouseEvent, edge: Edge) => {
+    e.stopPropagation();
+    const rect = containerRef.current!.getBoundingClientRect();
+    const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
+    setReconnecting({ edge, mouse: pos });
+    onReconnectStart?.(e as any, edge);
+  }, [screenToCanvas, onReconnectStart]);
+
   // Port drag start (for connecting)
   const handlePortMouseDown = useCallback((e: MouseEvent, nodeId: string, portId?: string) => {
     e.stopPropagation();
     const rect = containerRef.current!.getBoundingClientRect();
     const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     setConnecting({ sourceId: nodeId, sourcePort: portId, mouse: pos });
-  }, [screenToCanvas]);
+    onConnectStart?.(e as any, { nodeId, portId });
+  }, [screenToCanvas, onConnectStart]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Delete
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const sn = nodes.filter((n) => n.selected);
         const se = edges.filter((ed) => ed.selected);
-        if (sn.length) onNodesChange?.(sn.map((n) => ({ type: 'remove' as const, id: n.id })));
-        if (se.length) onEdgesChange?.(se.map((ed) => ({ type: 'remove' as const, id: ed.id })));
+        if (sn.length) {
+          onNodesDelete?.(sn);
+          onNodesChange?.(sn.map((n) => ({ type: 'remove' as const, id: n.id })));
+        }
+        if (se.length) {
+          onEdgesDelete?.(se);
+          onEdgesChange?.(se.map((ed) => ({ type: 'remove' as const, id: ed.id })));
+        }
       }
-      // Ctrl+A select all
       if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         onNodesChange?.(nodes.map((n) => ({ type: 'select' as const, id: n.id, selected: true })));
@@ -218,7 +298,7 @@ export function Canvas({
     };
     el.addEventListener('keydown', handleKeyDown);
     return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, edges, onNodesChange, onEdgesChange]);
+  }, [nodes, edges, onNodesChange, onEdgesChange, onNodesDelete, onEdgesDelete]);
 
   // Drop
   const handleCanvasDrop = useCallback((e: DragEvent) => {
@@ -234,60 +314,142 @@ export function Canvas({
     onDragOver?.(e as any);
   }, [onDragOver]);
 
-  // Edge path - auto-detect best port direction based on relative node positions
-  function calcEdgePath(edge: Edge): string {
+  // Edge path calculation - radial border intersection
+  function calcEdgePath(edge: Edge): { path: string; sourcePos: string; targetPos: string; sx: number; sy: number; tx: number; ty: number } {
     const sourceNode = nodes.find((n) => n.id === edge.source);
     const targetNode = nodes.find((n) => n.id === edge.target);
-    if (!sourceNode || !targetNode) return '';
+    if (!sourceNode || !targetNode) return { path: '', sourcePos: 'bottom', targetPos: 'top', sx: 0, sy: 0, tx: 0, ty: 0 };
     const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
     const tw = targetNode.width || 140, th = targetNode.height || 40;
 
-    // Calculate centers
+    // Node centers
     const sCx = sourceNode.position.x + sw / 2;
     const sCy = sourceNode.position.y + sh / 2;
     const tCx = targetNode.position.x + tw / 2;
     const tCy = targetNode.position.y + th / 2;
 
+    // Calculate border intersection points (radial)
+    const source = getBorderPoint(sCx, sCy, sw, sh, tCx, tCy);
+    const target = getBorderPoint(tCx, tCy, tw, th, sCx, sCy);
+
+    // Determine direction for smart bezier
     const dx = tCx - sCx;
     const dy = tCy - sCy;
-
-    // Determine best exit/entry direction based on relative position
     let sourceDir: 'top' | 'bottom' | 'left' | 'right';
     let targetDir: 'top' | 'bottom' | 'left' | 'right';
-
     if (Math.abs(dy) > Math.abs(dx)) {
-      // Primarily vertical
       if (dy > 0) { sourceDir = 'bottom'; targetDir = 'top'; }
       else { sourceDir = 'top'; targetDir = 'bottom'; }
     } else {
-      // Primarily horizontal
       if (dx > 0) { sourceDir = 'right'; targetDir = 'left'; }
       else { sourceDir = 'left'; targetDir = 'right'; }
     }
 
-    const source = getPortPosition(sourceNode.position, sw, sh, sourceDir);
-    const target = getPortPosition(targetNode.position, tw, th, targetDir);
-
     const type = edge.type || defaultEdgeType;
+    let path: string;
     switch (type) {
-      case 'step': return getStepPath(source, target);
-      case 'straight': return getStraightPath(source, target);
-      default: return getSmartBezierPath(source, target, sourceDir, targetDir);
+      case 'step': path = getStepPath(source, target); break;
+      case 'straight': path = getStraightPath(source, target); break;
+      default: path = getSmartBezierPath(source, target, sourceDir, targetDir); break;
     }
+
+    return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
   }
 
-  // Edge label midpoint
-  function getEdgeMidpoint(edge: Edge): Point | null {
-    const sourceNode = nodes.find((n) => n.id === edge.source);
-    const targetNode = nodes.find((n) => n.id === edge.target);
-    if (!sourceNode || !targetNode) return null;
-    const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
-    const tw = targetNode.width || 140, th = targetNode.height || 40;
-    const sx = sourceNode.position.x + sw / 2, sy = sourceNode.position.y + sh / 2;
-    const tx = targetNode.position.x + tw / 2, ty = targetNode.position.y + th / 2;
-    return { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+  // Calculate the point on the node border (elliptical) in the direction of a target point
+  function getBorderPoint(cx: number, cy: number, w: number, h: number, targetX: number, targetY: number): Point {
+    const dx = targetX - cx;
+    const dy = targetY - cy;
+    if (dx === 0 && dy === 0) return { x: cx, y: cy + h / 2 };
+
+    const angle = Math.atan2(dy, dx);
+    // Use ellipse formula: point on ellipse at angle
+    const rx = w / 2;
+    const ry = h / 2;
+    const x = cx + rx * Math.cos(angle);
+    const y = cy + ry * Math.sin(angle);
+    return { x, y };
   }
 
+  // Render edge (custom or default)
+  function renderEdge(edge: Edge) {
+    const { path, sourcePos, targetPos, sx, sy, tx, ty } = calcEdgePath(edge);
+    const CustomEdge = edgeTypes[edge.type || ''];
+
+    if (CustomEdge) {
+      return (
+        <g key={edge.id} onClick={(e) => handleEdgeClick(e as any, edge.id)} style={{ cursor: 'pointer' }}>
+          <CustomEdge
+            id={edge.id}
+            source={edge.source}
+            target={edge.target}
+            sourceX={sx}
+            sourceY={sy}
+            targetX={tx}
+            targetY={ty}
+            sourcePosition={sourcePos as any}
+            targetPosition={targetPos as any}
+            selected={!!edge.selected}
+            animated={edge.animated}
+            label={edge.label}
+            style={edge.style}
+            data={edge.data}
+          />
+        </g>
+      );
+    }
+
+    // Default edge rendering
+    const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+    // Label offset perpendicular to edge direction
+    const angle = Math.atan2(ty - sy, tx - sx);
+    const labelOffsetX = -Math.sin(angle) * 14;
+    const labelOffsetY = Math.cos(angle) * 14;
+
+    return (
+      <g key={edge.id} style={{ cursor: 'pointer' }}>
+        <path d={path} fill="none" stroke="transparent" strokeWidth={12} pointerEvents="stroke" onClick={(e) => handleEdgeClick(e as any, edge.id)} />
+        <path
+          d={path}
+          fill="none"
+          stroke={edge.selected ? '#2563eb' : '#b0b8c4'}
+          strokeWidth={edge.selected ? 1.5 : 1}
+          strokeDasharray={edge.animated ? '5 5' : undefined}
+          markerEnd={edge.selected ? 'url(#ic-arrow-selected)' : 'url(#ic-arrow)'}
+          pointerEvents="none"
+        >
+          {edge.animated && <animate attributeName="stroke-dashoffset" from="10" to="0" dur="0.5s" repeatCount="indefinite" />}
+        </path>
+        {edge.label && (
+          <text
+            x={mid.x + labelOffsetX}
+            y={mid.y + labelOffsetY}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={11}
+            fill="#6b7280"
+            pointerEvents="none"
+          >
+            {edge.label}
+          </text>
+        )}
+        {/* Reconnect handle at target end */}
+        {edge.reconnectable !== false && (
+          <circle
+            cx={tx}
+            cy={ty}
+            r={5}
+            fill="transparent"
+            pointerEvents="auto"
+            style={{ cursor: 'grab' }}
+            onMouseDown={(e) => handleEdgeReconnectStart(e as any, edge)}
+          />
+        )}
+      </g>
+    );
+  }
+
+  const ConnectionLineComponent = connectionLineComponent || DefaultConnectionLine;
   const transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
 
   return (
@@ -310,34 +472,32 @@ export function Canvas({
           <pattern id="ic-grid" width={gridSize * viewport.zoom} height={gridSize * viewport.zoom} patternUnits="userSpaceOnUse" x={viewport.x % (gridSize * viewport.zoom)} y={viewport.y % (gridSize * viewport.zoom)}>
             <circle cx="1" cy="1" r="1" fill="#ddd" />
           </pattern>
+          <marker id="ic-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#b0b8c4" />
+          </marker>
+          <marker id="ic-arrow-selected" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb" />
+          </marker>
         </defs>
         <rect width="100%" height="100%" fill="url(#ic-grid)" pointerEvents="none" />
         <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`} pointerEvents="auto">
           {/* Edges */}
-          {edges.map((edge) => (
-            <g key={edge.id} onClick={(e) => handleEdgeClick(e as any, edge.id)} style={{ cursor: 'pointer' }}>
-              <path d={calcEdgePath(edge)} fill="none" stroke="transparent" strokeWidth={12} pointerEvents="stroke" />
-              <path d={calcEdgePath(edge)} fill="none" stroke={edge.selected ? '#2563eb' : '#b0bec5'} strokeWidth={edge.selected ? 2.5 : 2} pointerEvents="none" />
-              {/* Edge label */}
-              {edge.label && (() => {
-                const mid = getEdgeMidpoint(edge);
-                if (!mid) return null;
-                return (
-                  <text x={mid.x} y={mid.y - 6} textAnchor="middle" fontSize={10} fill="#6b7280" pointerEvents="none">
-                    {edge.label}
-                  </text>
-                );
-              })()}
-            </g>
-          ))}
+          {edges.map(renderEdge)}
           {/* Connecting line */}
           {connecting && (() => {
             const sourceNode = nodes.find((n) => n.id === connecting.sourceId);
             if (!sourceNode) return null;
             const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
             const start = getPortPosition(sourceNode.position, sw, sh, 'bottom');
-            const path = getBezierPath(start, connecting.mouse);
-            return <path d={path} fill="none" stroke="#2563eb" strokeWidth={2} strokeDasharray="6 3" pointerEvents="none" />;
+            return <ConnectionLineComponent fromX={start.x} fromY={start.y} toX={connecting.mouse.x} toY={connecting.mouse.y} fromPosition="bottom" />;
+          })()}
+          {/* Reconnecting line */}
+          {reconnecting && (() => {
+            const sourceNode = nodes.find((n) => n.id === reconnecting.edge.source);
+            if (!sourceNode) return null;
+            const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
+            const start = getPortPosition(sourceNode.position, sw, sh, 'bottom');
+            return <ConnectionLineComponent fromX={start.x} fromY={start.y} toX={reconnecting.mouse.x} toY={reconnecting.mouse.y} fromPosition="bottom" />;
           })()}
           {/* Lasso rect */}
           {lasso && (
@@ -357,19 +517,30 @@ export function Canvas({
       </svg>
 
       {/* HTML Layer - Nodes */}
-      <div className="ic-canvas-pane" style={{ position: 'absolute', inset: 0, transform, transformOrigin: '0 0' }}>
+      <div className="ic-canvas-pane" style={{ position: 'absolute', inset: 0, transform, transformOrigin: '0 0', pointerEvents: 'none' }}>
         {nodes.map((node) => {
           const NodeComponent = nodeTypes[node.type];
+          const rotation = node.rotation || 0;
           return (
             <div
               key={node.id}
               className={`ic-node ${node.selected ? 'ic-node-selected' : ''}`}
-              style={{ position: 'absolute', left: node.position.x, top: node.position.y, cursor: 'grab' }}
+              style={{
+                position: 'absolute',
+                left: node.position.x,
+                top: node.position.y,
+                width: node.width,
+                height: node.height,
+                cursor: 'grab',
+                transform: rotation ? `rotate(${rotation}deg)` : undefined,
+                transformOrigin: 'center center',
+                pointerEvents: 'auto',
+              }}
               onMouseDown={(e) => handleNodeMouseDown(e, node)}
               onDoubleClick={(e) => onNodeDoubleClick?.(e, node)}
             >
               {NodeComponent
-                ? <NodeComponent id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} />
+                ? <NodeComponent id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} width={node.width} height={node.height} rotation={node.rotation} dragHandle={node.dragHandle} />
                 : <DefaultNode id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} onPortMouseDown={handlePortMouseDown} />
               }
             </div>
@@ -396,7 +567,6 @@ function DefaultNode({ id, data, selected, onPortMouseDown }: { id: string; data
       position: 'relative',
     }}>
       {(data.label as string) || id}
-      {/* Bottom port handle */}
       <div
         onMouseDown={(e) => onPortMouseDown?.(e as any, id)}
         style={{
@@ -405,7 +575,6 @@ function DefaultNode({ id, data, selected, onPortMouseDown }: { id: string; data
           background: '#fff', border: '2px solid #b0bec5', cursor: 'crosshair',
         }}
       />
-      {/* Top port handle */}
       <div
         style={{
           position: 'absolute', top: -5, left: '50%', transform: 'translateX(-50%)',
@@ -418,10 +587,6 @@ function DefaultNode({ id, data, selected, onPortMouseDown }: { id: string; data
 }
 
 // MiniMap component
-export function MiniMap({ width = 160, height = 110 }: { width?: number; height?: number }) {
-  return null; // Rendered via Canvas children - actual impl below
-}
-
 export function MiniMapInner({ nodes, edges, viewport, containerWidth, containerHeight, width = 160, height = 110 }: {
   nodes: Node[]; edges: Edge[]; viewport: { x: number; y: number; zoom: number };
   containerWidth: number; containerHeight: number; width?: number; height?: number;
@@ -439,7 +604,6 @@ export function MiniMapInner({ nodes, edges, viewport, containerWidth, container
   const bh = maxY - minY + pad * 2;
   const scale = Math.min(width / bw, height / bh);
 
-  // Viewport rect in canvas coords
   const vx = (-viewport.x / viewport.zoom);
   const vy = (-viewport.y / viewport.zoom);
   const vw = containerWidth / viewport.zoom;
@@ -448,7 +612,6 @@ export function MiniMapInner({ nodes, edges, viewport, containerWidth, container
   return (
     <div style={{ position: 'absolute', bottom: 12, right: 12, width, height, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
       <svg width={width} height={height}>
-        {/* Nodes */}
         {nodes.map((n) => (
           <rect
             key={n.id}
@@ -460,7 +623,6 @@ export function MiniMapInner({ nodes, edges, viewport, containerWidth, container
             rx={2}
           />
         ))}
-        {/* Viewport indicator */}
         <rect
           x={(vx - minX + pad) * scale}
           y={(vy - minY + pad) * scale}
