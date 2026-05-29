@@ -691,7 +691,7 @@ function Canvas({
       ref: containerRef,
       className: `ic-canvas ${className || ""}`,
       tabIndex: 0,
-      style: { position: "relative", overflow: "hidden", width: "100%", height: "100%", background: "#fafafa", outline: "none", ...style },
+      style: { position: "relative", overflow: "hidden", width: "100%", height: "100%", background: "#fafafa", outline: "none", userSelect: "none", ...style },
       onWheel: handleWheel,
       onMouseDown: handlePaneMouseDown,
       onMouseMove: handleMouseMove,
