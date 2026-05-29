@@ -1,3 +1,6 @@
+// License
+export { initCanvas } from './license';
+
 // Components
 export { Canvas, MiniMapInner } from './Canvas';
 export { Handle, checkConnectable } from './components/Handle';

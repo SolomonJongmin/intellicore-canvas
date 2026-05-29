@@ -3,6 +3,7 @@ import type { CanvasProps, Node, Edge, Point, Connection, ConnectionLineProps } 
 import { useViewport } from './hooks/useViewport';
 import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
 import { DefaultConnectionLine } from './components/ConnectionLine';
+import { isLicensed } from './license';
 
 export function Canvas({
   nodes,
@@ -550,6 +551,13 @@ export function Canvas({
 
       {/* Children (MiniMap, Controls, etc.) */}
       {children}
+
+      {/* License watermark */}
+      {!isLicensed() && (
+        <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: 'rgba(0,0,0,0.25)', pointerEvents: 'none', userSelect: 'none' }}>
+          IntelliCore Canvas — Unlicensed
+        </div>
+      )}
     </div>
   );
 }
