@@ -100,7 +100,8 @@ export function Canvas({
 
     // Check nodrag — start connection instead
     if (isNoDrag(target)) {
-      const rect = containerRef.current!.getBoundingClientRect();
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
       setConnecting({ sourceId: node.id, sourcePort: undefined, mouse: pos });
       onConnectStart?.(e as any, { nodeId: node.id });
@@ -115,7 +116,8 @@ export function Canvas({
     if (!isDragHandle(target, node)) return;
 
     dragNodeId.current = node.id;
-    const rect = containerRef.current!.getBoundingClientRect();
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
     const canvasPos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     dragOffset.current = { x: canvasPos.x - node.position.x, y: canvasPos.y - node.position.y };
 
@@ -130,10 +132,11 @@ export function Canvas({
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     handlePanMove(e);
+    if (!containerRef.current) return;
 
     // Lasso
     if (lassoStart.current) {
-      const rect = containerRef.current!.getBoundingClientRect();
+      const rect = containerRef.current.getBoundingClientRect();
       const end = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
       setLasso({ start: lassoStart.current, end });
       return;
@@ -141,7 +144,7 @@ export function Canvas({
 
     // Drag-to-connect
     if (connecting) {
-      const rect = containerRef.current!.getBoundingClientRect();
+      const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
       setConnecting({ ...connecting, mouse: pos });
       return;
@@ -149,7 +152,7 @@ export function Canvas({
 
     // Edge reconnect
     if (reconnecting) {
-      const rect = containerRef.current!.getBoundingClientRect();
+      const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
       setReconnecting({ ...reconnecting, mouse: pos });
       return;
@@ -157,7 +160,7 @@ export function Canvas({
 
     // Node drag
     if (!dragNodeId.current) return;
-    const rect = containerRef.current!.getBoundingClientRect();
+    const rect = containerRef.current.getBoundingClientRect();
     const canvasPos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     let x = canvasPos.x - dragOffset.current.x;
     let y = canvasPos.y - dragOffset.current.y;

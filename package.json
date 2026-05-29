@@ -1,19 +1,24 @@
 {
-  "name": "@intellicore/visual-canvas",
-  "version": "0.1.0",
+  "name": "@solomonjongmin/visual-canvas",
+  "version": "0.1.1",
   "description": "Visual canvas engine for flow editors, ERD diagrams, and node-based UIs",
   "license": "UNLICENSED",
-  "private": true,
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.esm.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SolomonJongmin/intellicore-canvas.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.esm.js",
-      "require": "./dist/index.cjs.js",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
   "files": ["dist"],
   "scripts": {

@@ -17,11 +17,13 @@ export function useViewport(options: UseViewportOptions = {}) {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const el = e.currentTarget as HTMLElement;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
       setViewport((v) => {
         const newZoom = Math.min(maxZoom, Math.max(minZoom, v.zoom * delta));
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
         return {
           x: mx - (mx - v.x) * (newZoom / v.zoom),
           y: my - (my - v.y) * (newZoom / v.zoom),
