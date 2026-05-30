@@ -7,6 +7,13 @@ import { getEdgeAtPoint } from './utils/graph';
 import { DefaultConnectionLine } from './components/ConnectionLine';
 import { isLicensed } from './license';
 
+const zoomBtnStyle: React.CSSProperties = {
+  width: 28, height: 28, border: '1px solid #e5e7eb', borderRadius: 6,
+  background: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 500,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+};
+
 export function Canvas({
   nodes,
   edges,
@@ -581,6 +588,22 @@ export function Canvas({
             </div>
           );
         })}
+      </div>
+
+      {/* Zoom Controls */}
+      <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10 }}>
+        <button onClick={() => setViewport((v) => ({ ...v, zoom: Math.min(maxZoom, v.zoom * 1.2) }))} style={zoomBtnStyle} title="Zoom In">+</button>
+        <button onClick={() => setViewport((v) => ({ ...v, zoom: Math.max(minZoom, v.zoom / 1.2) }))} style={zoomBtnStyle} title="Zoom Out">−</button>
+        <button onClick={() => {
+          const el = containerRef.current;
+          if (!el || nodes.length === 0) return;
+          const rect = el.getBoundingClientRect();
+          let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+          for (const n of nodes) { mnX = Math.min(mnX, n.position.x); mnY = Math.min(mnY, n.position.y); mxX = Math.max(mxX, n.position.x + (n.width || 140)); mxY = Math.max(mxY, n.position.y + (n.height || 40)); }
+          const pad = 50, w = mxX - mnX + pad * 2, h = mxY - mnY + pad * 2;
+          const z = Math.min(rect.width / w, rect.height / h, 1.5);
+          setViewport({ x: (rect.width - w * z) / 2 - mnX * z + pad * z, y: (rect.height - h * z) / 2 - mnY * z + pad * z, zoom: z });
+        }} style={zoomBtnStyle} title="Fit View">⊡</button>
       </div>
 
       {/* Children (MiniMap, Controls, etc.) */}
