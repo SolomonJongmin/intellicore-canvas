@@ -86,7 +86,7 @@ function isLicensed() {
 }
 
 // src/Canvas.tsx
-var import_react2 = require("react");
+var import_react3 = require("react");
 
 // src/hooks/useViewport.ts
 var import_react = require("react");
@@ -153,6 +153,69 @@ function useViewport(options = {}) {
     setViewport({ x: -minX * zoom + padding, y: -minY * zoom + padding, zoom });
   }, []);
   return { viewport, setViewport, handleWheel, handlePanStart, handlePanMove, handlePanEnd, screenToCanvas, fitView };
+}
+
+// src/hooks/useCopyPaste.ts
+var import_react2 = require("react");
+var PASTE_OFFSET = 50;
+function useCopyPaste({ nodes, edges, onNodesChange, onEdgesChange }) {
+  const clipboard = (0, import_react2.useRef)(null);
+  const copy = (0, import_react2.useCallback)(() => {
+    const selectedNodes = nodes.filter((n) => n.selected);
+    const selectedNodeIds = new Set(selectedNodes.map((n) => n.id));
+    const selectedEdges = edges.filter(
+      (e) => e.selected || selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
+    );
+    clipboard.current = { nodes: selectedNodes, edges: selectedEdges };
+  }, [nodes, edges]);
+  const cut = (0, import_react2.useCallback)(() => {
+    copy();
+    const selectedNodes = nodes.filter((n) => n.selected);
+    const selectedEdges = edges.filter((e) => e.selected);
+    if (selectedNodes.length) onNodesChange(selectedNodes.map((n) => ({ type: "remove", id: n.id })));
+    if (selectedEdges.length) onEdgesChange(selectedEdges.map((e) => ({ type: "remove", id: e.id })));
+  }, [copy, nodes, edges, onNodesChange, onEdgesChange]);
+  const paste = (0, import_react2.useCallback)(() => {
+    if (!clipboard.current || clipboard.current.nodes.length === 0) return;
+    const idMap = /* @__PURE__ */ new Map();
+    const now = Date.now();
+    onNodesChange(nodes.filter((n) => n.selected).map((n) => ({ type: "select", id: n.id, selected: false })));
+    const newNodes = clipboard.current.nodes.map((n, i) => {
+      const newId = `${n.id}-copy-${now}-${i}`;
+      idMap.set(n.id, newId);
+      return { ...n, id: newId, position: { x: n.position.x + PASTE_OFFSET, y: n.position.y + PASTE_OFFSET }, selected: true };
+    });
+    const newEdges = clipboard.current.edges.filter((e) => idMap.has(e.source) && idMap.has(e.target)).map((e, i) => ({
+      ...e,
+      id: `${e.id}-copy-${now}-${i}`,
+      source: idMap.get(e.source),
+      target: idMap.get(e.target),
+      selected: false
+    }));
+    onNodesChange(newNodes.map((n) => ({ type: "add", node: n })));
+    if (newEdges.length) onEdgesChange(newEdges.map((e) => ({ type: "add", edge: e })));
+  }, [nodes, onNodesChange, onEdgesChange]);
+  (0, import_react2.useEffect)(() => {
+    const handler = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      switch (e.key) {
+        case "c":
+          copy();
+          break;
+        case "x":
+          cut();
+          break;
+        case "v":
+          e.preventDefault();
+          paste();
+          break;
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [copy, cut, paste]);
+  return { copy, cut, paste };
 }
 
 // src/utils/path.ts
@@ -308,16 +371,17 @@ function Canvas({
   style,
   children
 }) {
-  const containerRef = (0, import_react2.useRef)(null);
+  const containerRef = (0, import_react3.useRef)(null);
   const { viewport, setViewport, handleWheel, handlePanStart, handlePanMove, handlePanEnd, screenToCanvas } = useViewport({ minZoom, maxZoom });
-  const dragNodeId = (0, import_react2.useRef)(null);
-  const dragOffset = (0, import_react2.useRef)({ x: 0, y: 0 });
-  const didFitView = (0, import_react2.useRef)(false);
-  const [lasso, setLasso] = (0, import_react2.useState)(null);
-  const lassoStart = (0, import_react2.useRef)(null);
-  const [connecting, setConnecting] = (0, import_react2.useState)(null);
-  const [reconnecting, setReconnecting] = (0, import_react2.useState)(null);
-  (0, import_react2.useEffect)(() => {
+  useCopyPaste({ nodes, edges, onNodesChange, onEdgesChange });
+  const dragNodeId = (0, import_react3.useRef)(null);
+  const dragOffset = (0, import_react3.useRef)({ x: 0, y: 0 });
+  const didFitView = (0, import_react3.useRef)(false);
+  const [lasso, setLasso] = (0, import_react3.useState)(null);
+  const lassoStart = (0, import_react3.useRef)(null);
+  const [connecting, setConnecting] = (0, import_react3.useState)(null);
+  const [reconnecting, setReconnecting] = (0, import_react3.useState)(null);
+  (0, import_react3.useEffect)(() => {
     if (!fitViewProp || didFitView.current || nodes.length === 0) return;
     didFitView.current = true;
     const el = containerRef.current;
@@ -340,14 +404,14 @@ function Canvas({
       zoom
     });
   }, [fitViewProp, nodes, setViewport]);
-  const isDragHandle = (0, import_react2.useCallback)((target, node) => {
+  const isDragHandle = (0, import_react3.useCallback)((target, node) => {
     if (!node.dragHandle) return true;
     return target.closest(node.dragHandle) !== null;
   }, []);
-  const isNoDrag = (0, import_react2.useCallback)((target) => {
+  const isNoDrag = (0, import_react3.useCallback)((target) => {
     return target.closest(".nodrag") !== null;
   }, []);
-  const handleNodeMouseDown = (0, import_react2.useCallback)((e, node) => {
+  const handleNodeMouseDown = (0, import_react3.useCallback)((e, node) => {
     e.stopPropagation();
     if (e.button !== 0) return;
     const target = e.target;
@@ -377,7 +441,7 @@ function Canvas({
     }
     onNodeClick?.(e, node);
   }, [screenToCanvas, onNodesChange, onNodeClick, onConnectStart, nodes, isDragHandle, isNoDrag]);
-  const handleMouseMove = (0, import_react2.useCallback)((e) => {
+  const handleMouseMove = (0, import_react3.useCallback)((e) => {
     handlePanMove(e);
     if (!containerRef.current) return;
     if (lassoStart.current) {
@@ -418,7 +482,7 @@ function Canvas({
       onNodesChange?.([{ type: "position", id: dragNodeId.current, position: { x, y } }]);
     }
   }, [handlePanMove, screenToCanvas, snapToGrid, gridSize, onNodesChange, nodes, connecting, reconnecting]);
-  const handleMouseUp = (0, import_react2.useCallback)((e) => {
+  const handleMouseUp = (0, import_react3.useCallback)((e) => {
     if (lassoStart.current && lasso) {
       const minX = Math.min(lasso.start.x, lasso.end.x);
       const maxX = Math.max(lasso.start.x, lasso.end.x);
@@ -485,9 +549,11 @@ function Canvas({
     dragNodeId.current = null;
     handlePanEnd();
   }, [handlePanEnd, lasso, connecting, reconnecting, nodes, edges, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd, onNodeDragStop, dropOnEdge]);
-  const handlePaneMouseDown = (0, import_react2.useCallback)((e) => {
+  const handlePaneMouseDown = (0, import_react3.useCallback)((e) => {
     handlePanStart(e);
-    if (e.target === e.currentTarget || e.target.classList.contains("ic-canvas-pane")) {
+    const target = e.target;
+    const isPane = target === e.currentTarget || target.classList.contains("ic-canvas-pane") || target.closest(".ic-canvas-pane") === target;
+    if (isPane) {
       if (e.button === 0 && !e.altKey) {
         const rect = containerRef.current.getBoundingClientRect();
         const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
@@ -498,28 +564,28 @@ function Canvas({
       onPaneClick?.(e);
     }
   }, [handlePanStart, screenToCanvas, nodes, edges, onNodesChange, onEdgesChange, onPaneClick]);
-  const handleEdgeClick = (0, import_react2.useCallback)((e, edgeId) => {
+  const handleEdgeClick = (0, import_react3.useCallback)((e, edgeId) => {
     e.stopPropagation();
     onNodesChange?.(nodes.filter((n) => n.selected).map((n) => ({ type: "select", id: n.id, selected: false })));
     onEdgesChange?.(edges.map((ed) => ({ type: "select", id: ed.id, selected: ed.id === edgeId })));
     const edge = edges.find((ed) => ed.id === edgeId);
     if (edge) onEdgeClick?.(e, edge);
   }, [nodes, edges, onNodesChange, onEdgesChange, onEdgeClick]);
-  const handleEdgeReconnectStart = (0, import_react2.useCallback)((e, edge) => {
+  const handleEdgeReconnectStart = (0, import_react3.useCallback)((e, edge) => {
     e.stopPropagation();
     const rect = containerRef.current.getBoundingClientRect();
     const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     setReconnecting({ edge, mouse: pos });
     onReconnectStart?.(e, edge);
   }, [screenToCanvas, onReconnectStart]);
-  const handlePortMouseDown = (0, import_react2.useCallback)((e, nodeId, portId) => {
+  const handlePortMouseDown = (0, import_react3.useCallback)((e, nodeId, portId) => {
     e.stopPropagation();
     const rect = containerRef.current.getBoundingClientRect();
     const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     setConnecting({ sourceId: nodeId, sourcePort: portId, mouse: pos });
     onConnectStart?.(e, { nodeId, portId });
   }, [screenToCanvas, onConnectStart]);
-  (0, import_react2.useEffect)(() => {
+  (0, import_react3.useEffect)(() => {
     const el = containerRef.current;
     if (!el) return;
     const handleKeyDown = (e) => {
@@ -543,14 +609,14 @@ function Canvas({
     el.addEventListener("keydown", handleKeyDown);
     return () => el.removeEventListener("keydown", handleKeyDown);
   }, [nodes, edges, onNodesChange, onEdgesChange, onNodesDelete, onEdgesDelete]);
-  const handleCanvasDrop = (0, import_react2.useCallback)((e) => {
+  const handleCanvasDrop = (0, import_react3.useCallback)((e) => {
     e.preventDefault();
     if (!onDrop) return;
     const rect = containerRef.current.getBoundingClientRect();
     const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
     onDrop(e, pos);
   }, [onDrop, screenToCanvas]);
-  const handleCanvasDragOver = (0, import_react2.useCallback)((e) => {
+  const handleCanvasDragOver = (0, import_react3.useCallback)((e) => {
     e.preventDefault();
     onDragOver?.(e);
   }, [onDragOver]);
@@ -910,7 +976,7 @@ function checkConnectable(isConnectable, node, port, connectedEdges) {
 }
 
 // src/components/nodes/NodeResizer.tsx
-var import_react3 = require("react");
+var import_react4 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var handlePositions = ["top-left", "top-right", "bottom-left", "bottom-right"];
 function NodeResizer({
@@ -953,7 +1019,7 @@ function ResizeHandle({
   onResize,
   onResizeEnd
 }) {
-  const startRef = (0, import_react3.useRef)(null);
+  const startRef = (0, import_react4.useRef)(null);
   const posStyle = {
     position: "absolute",
     width: 8,
@@ -967,7 +1033,7 @@ function ResizeHandle({
     cursor: position === "top-left" || position === "bottom-right" ? "nwse-resize" : "nesw-resize",
     ...style
   };
-  const handleMouseDown = (0, import_react3.useCallback)((e) => {
+  const handleMouseDown = (0, import_react4.useCallback)((e) => {
     e.stopPropagation();
     e.preventDefault();
     const parent = e.target.closest(".ic-node");
@@ -1010,8 +1076,8 @@ function NodeResizeControl({
   children,
   onResize
 }) {
-  const startRef = (0, import_react3.useRef)(null);
-  const handleMouseDown = (0, import_react3.useCallback)((e) => {
+  const startRef = (0, import_react4.useRef)(null);
+  const handleMouseDown = (0, import_react4.useCallback)((e) => {
     e.stopPropagation();
     e.preventDefault();
     const parent = e.target.closest(".ic-node");
@@ -1098,11 +1164,11 @@ function getPositionStyle(position, offset, align) {
 }
 
 // src/components/nodes/RotateHandle.tsx
-var import_react4 = require("react");
+var import_react5 = require("react");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 function RotateHandle({ rotation = 0, onRotate, onRotateEnd, style }) {
-  const centerRef = (0, import_react4.useRef)(null);
-  const handleMouseDown = (0, import_react4.useCallback)((e) => {
+  const centerRef = (0, import_react5.useRef)(null);
+  const handleMouseDown = (0, import_react5.useCallback)((e) => {
     e.stopPropagation();
     e.preventDefault();
     const node = e.target.closest(".ic-node");
@@ -1447,12 +1513,12 @@ function OrthogonalEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, ta
 }
 
 // src/components/edges/EdgeLabelRenderer.tsx
-var import_react5 = require("react");
+var import_react6 = require("react");
 var import_react_dom = require("react-dom");
 var CONTAINER_ID = "ic-edge-label-renderer";
 function EdgeLabelRenderer({ children }) {
-  const [container, setContainer] = (0, import_react5.useState)(null);
-  (0, import_react5.useEffect)(() => {
+  const [container, setContainer] = (0, import_react6.useState)(null);
+  (0, import_react6.useEffect)(() => {
     let el = document.getElementById(CONTAINER_ID);
     if (!el) {
       el = document.createElement("div");
@@ -1471,7 +1537,7 @@ function EdgeLabelRenderer({ children }) {
 }
 
 // src/hooks/useCanvas.ts
-var import_react6 = require("react");
+var import_react7 = require("react");
 
 // src/utils/changes.ts
 function applyNodeChanges(changes, nodes) {
@@ -1523,15 +1589,15 @@ function applyEdgeChanges(changes, edges) {
 
 // src/hooks/useCanvas.ts
 function useCanvas(options = {}) {
-  const [nodes, setNodes] = (0, import_react6.useState)(options.initialNodes || []);
-  const [edges, setEdges] = (0, import_react6.useState)(options.initialEdges || []);
-  const onNodesChange = (0, import_react6.useCallback)((changes) => {
+  const [nodes, setNodes] = (0, import_react7.useState)(options.initialNodes || []);
+  const [edges, setEdges] = (0, import_react7.useState)(options.initialEdges || []);
+  const onNodesChange = (0, import_react7.useCallback)((changes) => {
     setNodes((prev) => applyNodeChanges(changes, prev));
   }, []);
-  const onEdgesChange = (0, import_react6.useCallback)((changes) => {
+  const onEdgesChange = (0, import_react7.useCallback)((changes) => {
     setEdges((prev) => applyEdgeChanges(changes, prev));
   }, []);
-  const onConnect = (0, import_react6.useCallback)((connection) => {
+  const onConnect = (0, import_react7.useCallback)((connection) => {
     const newEdge = {
       id: `e-${Date.now()}`,
       source: connection.source,
@@ -1541,10 +1607,10 @@ function useCanvas(options = {}) {
     };
     setEdges((prev) => [...prev, newEdge]);
   }, []);
-  const addNode = (0, import_react6.useCallback)((node) => {
+  const addNode = (0, import_react7.useCallback)((node) => {
     setNodes((prev) => [...prev, node]);
   }, []);
-  const removeNode = (0, import_react6.useCallback)((id) => {
+  const removeNode = (0, import_react7.useCallback)((id) => {
     setNodes((prev) => prev.filter((n) => n.id !== id));
     setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
   }, []);
@@ -1552,15 +1618,15 @@ function useCanvas(options = {}) {
 }
 
 // src/hooks/useCanvasHistory.ts
-var import_react7 = require("react");
+var import_react8 = require("react");
 function useCanvasHistory(options = {}) {
   const { initialNodes = [], initialEdges = [], maxHistory = 50, onStateChange } = options;
-  const [nodes, setNodes] = (0, import_react7.useState)(initialNodes);
-  const [edges, setEdges] = (0, import_react7.useState)(initialEdges);
-  const past = (0, import_react7.useRef)([]);
-  const future = (0, import_react7.useRef)([]);
-  const skipRecord = (0, import_react7.useRef)(false);
-  const record = (0, import_react7.useCallback)((prevNodes, prevEdges) => {
+  const [nodes, setNodes] = (0, import_react8.useState)(initialNodes);
+  const [edges, setEdges] = (0, import_react8.useState)(initialEdges);
+  const past = (0, import_react8.useRef)([]);
+  const future = (0, import_react8.useRef)([]);
+  const skipRecord = (0, import_react8.useRef)(false);
+  const record = (0, import_react8.useCallback)((prevNodes, prevEdges) => {
     if (skipRecord.current) {
       skipRecord.current = false;
       return;
@@ -1568,7 +1634,7 @@ function useCanvasHistory(options = {}) {
     past.current = [...past.current.slice(-(maxHistory - 1)), { nodes: prevNodes, edges: prevEdges }];
     future.current = [];
   }, [maxHistory]);
-  const onNodesChange = (0, import_react7.useCallback)((changes) => {
+  const onNodesChange = (0, import_react8.useCallback)((changes) => {
     setNodes((prev) => {
       const dominated = changes.some((c) => c.type === "position" || c.type === "remove" || c.type === "add");
       if (dominated) record(prev, edges);
@@ -1577,7 +1643,7 @@ function useCanvasHistory(options = {}) {
       return next;
     });
   }, [edges, record, onStateChange]);
-  const onEdgesChange = (0, import_react7.useCallback)((changes) => {
+  const onEdgesChange = (0, import_react8.useCallback)((changes) => {
     setEdges((prev) => {
       const dominated = changes.some((c) => c.type === "remove" || c.type === "add");
       if (dominated) record(nodes, prev);
@@ -1586,7 +1652,7 @@ function useCanvasHistory(options = {}) {
       return next;
     });
   }, [nodes, record, onStateChange]);
-  const onConnect = (0, import_react7.useCallback)((connection) => {
+  const onConnect = (0, import_react8.useCallback)((connection) => {
     setEdges((prev) => {
       record(nodes, prev);
       const next = [...prev, { id: `e-${Date.now()}`, source: connection.source, sourcePort: connection.sourcePort, target: connection.target, targetPort: connection.targetPort }];
@@ -1594,7 +1660,7 @@ function useCanvasHistory(options = {}) {
       return next;
     });
   }, [nodes, record, onStateChange]);
-  const undo = (0, import_react7.useCallback)(() => {
+  const undo = (0, import_react8.useCallback)(() => {
     const prev = past.current.pop();
     if (!prev) return;
     future.current.push({ nodes, edges });
@@ -1603,7 +1669,7 @@ function useCanvasHistory(options = {}) {
     setEdges(prev.edges);
     if (onStateChange) onStateChange(prev);
   }, [nodes, edges, onStateChange]);
-  const redo = (0, import_react7.useCallback)(() => {
+  const redo = (0, import_react8.useCallback)(() => {
     const next = future.current.pop();
     if (!next) return;
     past.current.push({ nodes, edges });
@@ -1628,19 +1694,19 @@ function useCanvasHistory(options = {}) {
 }
 
 // src/hooks/useInteractions.ts
-var import_react8 = require("react");
+var import_react9 = require("react");
 function useInteractions({ nodes, edges, setNodes, setEdges }) {
-  const connectStartRef = (0, import_react8.useRef)(null);
-  const onConnectStart = (0, import_react8.useCallback)((_event, params) => {
+  const connectStartRef = (0, import_react9.useRef)(null);
+  const onConnectStart = (0, import_react9.useCallback)((_event, params) => {
     connectStartRef.current = params;
   }, []);
-  const onConnectEnd = (0, import_react8.useCallback)((event) => {
+  const onConnectEnd = (0, import_react9.useCallback)((event) => {
     if (!connectStartRef.current) return null;
     const startParams = connectStartRef.current;
     connectStartRef.current = null;
     return startParams;
   }, []);
-  const onNodesDelete = (0, import_react8.useCallback)((deletedNodes) => {
+  const onNodesDelete = (0, import_react9.useCallback)((deletedNodes) => {
     for (const deleted of deletedNodes) {
       const incomers = getIncomers(deleted, nodes, edges);
       const outgoers = getOutgoers(deleted, nodes, edges);
@@ -1662,11 +1728,11 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       }
     }
   }, [nodes, edges, setEdges]);
-  const getProximityConnection = (0, import_react8.useCallback)((nodeId, position, threshold = 100) => {
+  const getProximityConnection = (0, import_react9.useCallback)((nodeId, position, threshold = 100) => {
     const otherNodes = nodes.filter((n) => n.id !== nodeId);
     return getClosestNode(position, otherNodes, threshold);
   }, [nodes]);
-  const connectToProximity = (0, import_react8.useCallback)((sourceId, targetId) => {
+  const connectToProximity = (0, import_react9.useCallback)((sourceId, targetId) => {
     const exists = edges.some(
       (e) => e.source === sourceId && e.target === targetId || e.source === targetId && e.target === sourceId
     );
@@ -1677,7 +1743,7 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       target: targetId
     }]);
   }, [edges, setEdges]);
-  const insertNodeOnEdge = (0, import_react8.useCallback)((nodeId, position, threshold = 20) => {
+  const insertNodeOnEdge = (0, import_react9.useCallback)((nodeId, position, threshold = 20) => {
     const edge = getEdgeAtPoint(position, edges, nodes, threshold, nodeId);
     if (!edge) return false;
     setEdges((prev) => {
@@ -1702,85 +1768,22 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
 }
 
 // src/hooks/useEasyConnect.ts
-var import_react9 = require("react");
+var import_react10 = require("react");
 function useEasyConnect({ onConnect }) {
-  const connectingFrom = (0, import_react9.useRef)(null);
-  const onNodeMouseDown = (0, import_react9.useCallback)((e, node) => {
+  const connectingFrom = (0, import_react10.useRef)(null);
+  const onNodeMouseDown = (0, import_react10.useCallback)((e, node) => {
     const target = e.target;
     if (target.closest(".drag-handle") || target.closest(".nodrag")) return;
     connectingFrom.current = node.id;
   }, []);
-  const onNodeMouseUp = (0, import_react9.useCallback)((_e, node) => {
+  const onNodeMouseUp = (0, import_react10.useCallback)((_e, node) => {
     if (connectingFrom.current && connectingFrom.current !== node.id) {
       onConnect?.({ source: connectingFrom.current, target: node.id });
     }
     connectingFrom.current = null;
   }, [onConnect]);
-  const isConnecting = (0, import_react9.useCallback)(() => connectingFrom.current !== null, []);
+  const isConnecting = (0, import_react10.useCallback)(() => connectingFrom.current !== null, []);
   return { onNodeMouseDown, onNodeMouseUp, isConnecting };
-}
-
-// src/hooks/useCopyPaste.ts
-var import_react10 = require("react");
-var PASTE_OFFSET = 50;
-function useCopyPaste({ nodes, edges, onNodesChange, onEdgesChange }) {
-  const clipboard = (0, import_react10.useRef)(null);
-  const copy = (0, import_react10.useCallback)(() => {
-    const selectedNodes = nodes.filter((n) => n.selected);
-    const selectedNodeIds = new Set(selectedNodes.map((n) => n.id));
-    const selectedEdges = edges.filter(
-      (e) => e.selected || selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
-    );
-    clipboard.current = { nodes: selectedNodes, edges: selectedEdges };
-  }, [nodes, edges]);
-  const cut = (0, import_react10.useCallback)(() => {
-    copy();
-    const selectedNodes = nodes.filter((n) => n.selected);
-    const selectedEdges = edges.filter((e) => e.selected);
-    if (selectedNodes.length) onNodesChange(selectedNodes.map((n) => ({ type: "remove", id: n.id })));
-    if (selectedEdges.length) onEdgesChange(selectedEdges.map((e) => ({ type: "remove", id: e.id })));
-  }, [copy, nodes, edges, onNodesChange, onEdgesChange]);
-  const paste = (0, import_react10.useCallback)(() => {
-    if (!clipboard.current || clipboard.current.nodes.length === 0) return;
-    const idMap = /* @__PURE__ */ new Map();
-    const now = Date.now();
-    onNodesChange(nodes.filter((n) => n.selected).map((n) => ({ type: "select", id: n.id, selected: false })));
-    const newNodes = clipboard.current.nodes.map((n, i) => {
-      const newId = `${n.id}-copy-${now}-${i}`;
-      idMap.set(n.id, newId);
-      return { ...n, id: newId, position: { x: n.position.x + PASTE_OFFSET, y: n.position.y + PASTE_OFFSET }, selected: true };
-    });
-    const newEdges = clipboard.current.edges.filter((e) => idMap.has(e.source) && idMap.has(e.target)).map((e, i) => ({
-      ...e,
-      id: `${e.id}-copy-${now}-${i}`,
-      source: idMap.get(e.source),
-      target: idMap.get(e.target),
-      selected: false
-    }));
-    onNodesChange(newNodes.map((n) => ({ type: "add", node: n })));
-    if (newEdges.length) onEdgesChange(newEdges.map((e) => ({ type: "add", edge: e })));
-  }, [nodes, onNodesChange, onEdgesChange]);
-  (0, import_react10.useEffect)(() => {
-    const handler = (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      switch (e.key) {
-        case "c":
-          copy();
-          break;
-        case "x":
-          cut();
-          break;
-        case "v":
-          e.preventDefault();
-          paste();
-          break;
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [copy, cut, paste]);
-  return { copy, cut, paste };
 }
 
 // src/hooks/useAutoLayout.ts

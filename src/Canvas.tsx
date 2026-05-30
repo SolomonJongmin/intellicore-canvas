@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect, MouseEvent, DragEvent, ComponentType } from 'react';
 import type { CanvasProps, Node, Edge, Point, Connection, ConnectionLineProps } from './types';
 import { useViewport } from './hooks/useViewport';
+import { useCopyPaste } from './hooks/useCopyPaste';
 import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
 import { getEdgeAtPoint } from './utils/graph';
 import { DefaultConnectionLine } from './components/ConnectionLine';
@@ -42,6 +43,7 @@ export function Canvas({
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { viewport, setViewport, handleWheel, handlePanStart, handlePanMove, handlePanEnd, screenToCanvas } = useViewport({ minZoom, maxZoom });
+  useCopyPaste({ nodes, edges, onNodesChange: onNodesChange!, onEdgesChange: onEdgesChange! });
   const dragNodeId = useRef<string | null>(null);
   const dragOffset = useRef<Point>({ x: 0, y: 0 });
   const didFitView = useRef(false);
@@ -266,7 +268,9 @@ export function Canvas({
 
   const handlePaneMouseDown = useCallback((e: MouseEvent) => {
     handlePanStart(e);
-    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('ic-canvas-pane')) {
+    const target = e.target as HTMLElement;
+    const isPane = target === e.currentTarget || target.classList.contains('ic-canvas-pane') || target.closest('.ic-canvas-pane') === target;
+    if (isPane) {
       if (e.button === 0 && !e.altKey) {
         const rect = containerRef.current!.getBoundingClientRect();
         const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
