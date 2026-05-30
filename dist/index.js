@@ -330,8 +330,7 @@ function getEdgeAtPoint(point, edges, nodes, threshold = 20, excludeNodeId) {
 // src/components/ConnectionLine.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 function DefaultConnectionLine({ fromX, fromY, toX, toY }) {
-  const midY = (fromY + toY) / 2;
-  const path = `M ${fromX} ${fromY} C ${fromX} ${midY}, ${toX} ${midY}, ${toX} ${toY}`;
+  const path = `M ${fromX} ${fromY} L ${toX} ${toY}`;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: path, fill: "none", stroke: "#2563eb", strokeWidth: 2, strokeDasharray: "6 3", pointerEvents: "none" });
 }
 
