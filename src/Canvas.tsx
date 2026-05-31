@@ -218,7 +218,24 @@ export function Canvas({
                n.id !== connecting.sourceId;
       });
       if (target && onConnect) {
-        onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id });
+        // 마우스 위치에서 가장 가까운 target handle 찾기
+        const targetEl = document.querySelector(`[data-id="${target.id}"]`);
+        let targetPort: string | undefined;
+        if (targetEl) {
+          const handles = targetEl.querySelectorAll('[data-handletype="target"]');
+          let minDist = Infinity;
+          handles.forEach((h) => {
+            const rect = h.getBoundingClientRect();
+            const hx = rect.left + rect.width / 2;
+            const hy = rect.top + rect.height / 2;
+            const dist = Math.hypot(e.clientX - hx, e.clientY - hy);
+            if (dist < minDist) {
+              minDist = dist;
+              targetPort = (h as HTMLElement).dataset.handleid;
+            }
+          });
+        }
+        onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id, targetPort });
       }
       onConnectEnd?.(e as any);
       setConnecting(null);
