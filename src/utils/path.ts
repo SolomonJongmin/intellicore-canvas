@@ -38,6 +38,15 @@ export function getSmartBezierPath(
   const dist = Math.sqrt((target.x - source.x) ** 2 + (target.y - source.y) ** 2);
   const offset = Math.max(30, dist * 0.4);
 
+  // 같은 방향(둘 다 top/bottom)이면 타원형으로 — 중간점에서 위/아래로
+  if (sourceDir === targetDir && (sourceDir === 'top' || sourceDir === 'bottom')) {
+    const midX = (source.x + target.x) / 2;
+    const midY = (source.y + target.y) / 2;
+    const curveOffset = Math.max(40, dist * 0.3);
+    const cy = sourceDir === 'top' ? midY - curveOffset : midY + curveOffset;
+    return `M ${source.x} ${source.y} Q ${midX} ${cy}, ${target.x} ${target.y}`;
+  }
+
   const sc = getControlPoint(source, sourceDir, offset);
   const tc = getControlPoint(target, targetDir, offset);
 
