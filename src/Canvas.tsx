@@ -396,13 +396,26 @@ export function Canvas({
     const dy = tCy - sCy;
     let sourceDir: 'top' | 'bottom' | 'left' | 'right';
     let targetDir: 'top' | 'bottom' | 'left' | 'right';
-    if (Math.abs(dy) > Math.abs(dx)) {
-      if (dy > 0) { sourceDir = 'bottom'; targetDir = 'top'; }
-      else { sourceDir = 'top'; targetDir = 'bottom'; }
-    } else {
-      if (dx > 0) { sourceDir = 'right'; targetDir = 'left'; }
-      else { sourceDir = 'left'; targetDir = 'right'; }
-    }
+
+    // If port specifies position, use it
+    const portToDir = (port?: string): 'top' | 'bottom' | 'left' | 'right' | null => {
+      if (!port) return null;
+      if (port.includes('right')) return 'right';
+      if (port.includes('left')) return 'left';
+      if (port.includes('top')) return 'top';
+      if (port.includes('bottom')) return 'bottom';
+      return null;
+    };
+    const forcedSourceDir = portToDir(edge.sourcePort);
+    const forcedTargetDir = portToDir(edge.targetPort);
+
+    if (forcedSourceDir) { sourceDir = forcedSourceDir; }
+    else if (Math.abs(dy) > Math.abs(dx)) { sourceDir = dy > 0 ? 'bottom' : 'top'; }
+    else { sourceDir = dx > 0 ? 'right' : 'left'; }
+
+    if (forcedTargetDir) { targetDir = forcedTargetDir; }
+    else if (Math.abs(dy) > Math.abs(dx)) { targetDir = dy > 0 ? 'top' : 'bottom'; }
+    else { targetDir = dx > 0 ? 'left' : 'right'; }
 
     const type = edge.type || defaultEdgeType;
     let path: string;

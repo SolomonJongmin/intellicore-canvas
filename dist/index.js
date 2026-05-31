@@ -518,7 +518,23 @@ function Canvas({
         return connecting.mouse.x >= n.position.x && connecting.mouse.x <= n.position.x + w && connecting.mouse.y >= n.position.y && connecting.mouse.y <= n.position.y + h && n.id !== connecting.sourceId;
       });
       if (target && onConnect) {
-        onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id });
+        const targetEl = document.querySelector(`[data-id="${target.id}"]`);
+        let targetPort;
+        if (targetEl) {
+          const handles = targetEl.querySelectorAll('[data-handletype="target"]');
+          let minDist = Infinity;
+          handles.forEach((h) => {
+            const rect = h.getBoundingClientRect();
+            const hx = rect.left + rect.width / 2;
+            const hy = rect.top + rect.height / 2;
+            const dist = Math.hypot(e.clientX - hx, e.clientY - hy);
+            if (dist < minDist) {
+              minDist = dist;
+              targetPort = h.dataset.handleid;
+            }
+          });
+        }
+        onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id, targetPort });
       }
       onConnectEnd?.(e);
       setConnecting(null);
