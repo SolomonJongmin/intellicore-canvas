@@ -388,8 +388,22 @@ export function Canvas({
     const tCy = targetNode.position.y + th / 2;
 
     // Calculate border intersection points (radial)
-    const source = getBorderPoint(sCx, sCy, sw, sh, tCx, tCy);
-    const target = getBorderPoint(tCx, tCy, tw, th, sCx, sCy);
+    let source = getBorderPoint(sCx, sCy, sw, sh, tCx, tCy);
+    let target = getBorderPoint(tCx, tCy, tw, th, sCx, sCy);
+
+    // Override start/end point if port specifies a direction
+    const getHandlePoint = (cx: number, cy: number, w: number, h: number, port?: string) => {
+      if (!port) return null;
+      if (port.includes('top')) return { x: cx, y: cy - h / 2 };
+      if (port.includes('bottom')) return { x: cx, y: cy + h / 2 };
+      if (port.includes('left')) return { x: cx - w / 2, y: cy };
+      if (port.includes('right')) return { x: cx + w / 2, y: cy };
+      return null;
+    };
+    const forcedSource = getHandlePoint(sCx, sCy, sw, sh, edge.sourcePort);
+    const forcedTarget = getHandlePoint(tCx, tCy, tw, th, edge.targetPort);
+    if (forcedSource) source = forcedSource;
+    if (forcedTarget) target = forcedTarget;
 
     // Determine direction for smart bezier
     const dx = tCx - sCx;
