@@ -1,6 +1,6 @@
 {
   "name": "@solomonjongmin/visual-canvas",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Visual canvas engine for flow editors, ERD diagrams, and node-based UIs",
   "license": "UNLICENSED",
   "repository": {
