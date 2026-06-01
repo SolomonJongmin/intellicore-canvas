@@ -745,6 +745,24 @@ function Canvas({
         path = getSmartBezierPath(source, target, sourceDir, targetDir);
         break;
     }
+    const pairKey = [edge.source, edge.target].sort().join("-");
+    const pairEdges = edges.filter((e) => [e.source, e.target].sort().join("-") === pairKey);
+    if (pairEdges.length > 1) {
+      const idx = pairEdges.indexOf(edge);
+      const isForward = edge.source < edge.target;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const offset = 35 * ((isForward ? idx % 2 : (idx + 1) % 2) === 0 ? 1 : -1);
+      const sep = nx * (offset > 0 ? 2 : -2);
+      const sepY = ny * (offset > 0 ? 2 : -2);
+      const s = { x: source.x + sep, y: source.y + sepY };
+      const t = { x: target.x + sep, y: target.y + sepY };
+      const mx = (s.x + t.x) / 2 + nx * offset;
+      const my = (s.y + t.y) / 2 + ny * offset;
+      path = `M ${s.x} ${s.y} Q ${mx} ${my} ${t.x} ${t.y}`;
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: mx, labelY: my };
+    }
     return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
   }
   function getBorderPoint(cx, cy, w, h, targetX, targetY) {
@@ -759,7 +777,7 @@ function Canvas({
     return { x, y };
   }
   function renderEdge(edge) {
-    const { path, sourcePos, targetPos, sx, sy, tx, ty } = calcEdgePath(edge);
+    const { path, sourcePos, targetPos, sx, sy, tx, ty, labelX, labelY } = calcEdgePath(edge);
     const CustomEdge = edgeTypes[edge.type || ""];
     if (CustomEdge) {
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("g", { onClick: (e) => handleEdgeClick(e, edge.id), style: { cursor: "pointer" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -782,7 +800,7 @@ function Canvas({
         }
       ) }, edge.id);
     }
-    const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+    const mid = { x: labelX ?? (sx + tx) / 2, y: labelY ?? (sy + ty) / 2 };
     const angle = Math.atan2(ty - sy, tx - sx);
     const labelOffsetX = -Math.sin(angle) * 14;
     const labelOffsetY = Math.cos(angle) * 14;

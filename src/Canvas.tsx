@@ -384,7 +384,7 @@ export function Canvas({
   }, [onDragOver]);
 
   // Edge path calculation - radial border intersection
-  function calcEdgePath(edge: Edge): { path: string; sourcePos: string; targetPos: string; sx: number; sy: number; tx: number; ty: number } {
+  function calcEdgePath(edge: Edge): { path: string; sourcePos: string; targetPos: string; sx: number; sy: number; tx: number; ty: number; labelX?: number; labelY?: number } {
     const sourceNode = nodes.find((n) => n.id === edge.source);
     const targetNode = nodes.find((n) => n.id === edge.target);
     if (!sourceNode || !targetNode) return { path: '', sourcePos: 'bottom', targetPos: 'top', sx: 0, sy: 0, tx: 0, ty: 0 };
@@ -461,6 +461,26 @@ export function Canvas({
       default: path = getSmartBezierPath(source, target, sourceDir, targetDir); break;
     }
 
+    // If there are multiple edges between the same two nodes, curve them slightly
+    const pairKey = [edge.source, edge.target].sort().join('-');
+    const pairEdges = edges.filter((e) => [e.source, e.target].sort().join('-') === pairKey);
+    if (pairEdges.length > 1) {
+      const idx = pairEdges.indexOf(edge);
+      const isForward = edge.source < edge.target;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const offset = 35 * ((isForward ? idx % 2 : (idx + 1) % 2) === 0 ? 1 : -1);
+      const sep = nx * (offset > 0 ? 2 : -2);
+      const sepY = ny * (offset > 0 ? 2 : -2);
+      const s = { x: source.x + sep, y: source.y + sepY };
+      const t = { x: target.x + sep, y: target.y + sepY };
+      const mx = (s.x + t.x) / 2 + nx * offset;
+      const my = (s.y + t.y) / 2 + ny * offset;
+      path = `M ${s.x} ${s.y} Q ${mx} ${my} ${t.x} ${t.y}`;
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: mx, labelY: my };
+    }
+
     return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
   }
 
@@ -481,7 +501,7 @@ export function Canvas({
 
   // Render edge (custom or default)
   function renderEdge(edge: Edge) {
-    const { path, sourcePos, targetPos, sx, sy, tx, ty } = calcEdgePath(edge);
+    const { path, sourcePos, targetPos, sx, sy, tx, ty, labelX, labelY } = calcEdgePath(edge);
     const CustomEdge = edgeTypes[edge.type || ''];
 
     if (CustomEdge) {
@@ -508,7 +528,7 @@ export function Canvas({
     }
 
     // Default edge rendering
-    const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+    const mid = { x: labelX ?? (sx + tx) / 2, y: labelY ?? (sy + ty) / 2 };
     // Label offset perpendicular to edge direction
     const angle = Math.atan2(ty - sy, tx - sx);
     const labelOffsetX = -Math.sin(angle) * 14;
