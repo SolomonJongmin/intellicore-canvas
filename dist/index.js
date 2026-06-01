@@ -268,6 +268,12 @@ function getControlPoint(point, dir, offset) {
       return { x: point.x + offset, y: point.y };
   }
 }
+function getEllipticalArcPath(source, target, sweep = 0, ry = 20) {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const rx = Math.sqrt(dx * dx + dy * dy) / 2;
+  return `M ${source.x} ${source.y} A ${rx} ${ry} 0 0 ${sweep} ${target.x} ${target.y}`;
+}
 
 // src/utils/graph.ts
 function getConnectedEdges(node, edges) {
@@ -400,6 +406,7 @@ function Canvas({
   const didFitView = (0, import_react3.useRef)(false);
   const [lasso, setLasso] = (0, import_react3.useState)(null);
   const lassoStart = (0, import_react3.useRef)(null);
+  const lassoOrigin = (0, import_react3.useRef)(null);
   const [connecting, setConnecting] = (0, import_react3.useState)(null);
   const [reconnecting, setReconnecting] = (0, import_react3.useState)(null);
   (0, import_react3.useEffect)(() => {
@@ -465,6 +472,14 @@ function Canvas({
   const handleMouseMove = (0, import_react3.useCallback)((e) => {
     handlePanMove(e);
     if (!containerRef.current) return;
+    if (lassoOrigin.current && !lassoStart.current) {
+      const dx2 = e.clientX - lassoOrigin.current.x;
+      const dy2 = e.clientY - lassoOrigin.current.y;
+      if (dx2 * dx2 + dy2 * dy2 >= 25) {
+        const rect2 = containerRef.current.getBoundingClientRect();
+        lassoStart.current = screenToCanvas(lassoOrigin.current.x - rect2.left, lassoOrigin.current.y - rect2.top);
+      }
+    }
     if (lassoStart.current) {
       const rect2 = containerRef.current.getBoundingClientRect();
       const end = screenToCanvas(e.clientX - rect2.left, e.clientY - rect2.top);
@@ -515,6 +530,7 @@ function Canvas({
       });
       onNodesChange?.(changes);
       lassoStart.current = null;
+      lassoOrigin.current = null;
       setLasso(null);
       return;
     }
@@ -584,6 +600,8 @@ function Canvas({
       }
     }
     dragNodeId.current = null;
+    lassoOrigin.current = null;
+    lassoStart.current = null;
     handlePanEnd();
   }, [handlePanEnd, lasso, connecting, reconnecting, nodes, edges, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd, onNodeDragStop, dropOnEdge]);
   const handlePaneMouseDown = (0, import_react3.useCallback)((e) => {
@@ -592,9 +610,7 @@ function Canvas({
     const isPane = target === e.currentTarget || target.classList.contains("ic-canvas-pane") || target.closest(".ic-canvas-pane") === target;
     if (isPane) {
       if (e.button === 0 && !e.altKey) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
-        lassoStart.current = pos;
+        lassoOrigin.current = { x: e.clientX, y: e.clientY };
       }
       onNodesChange?.(nodes.filter((n) => n.selected).map((n) => ({ type: "select", id: n.id, selected: false })));
       onEdgesChange?.(edges.filter((ed) => ed.selected).map((ed) => ({ type: "select", id: ed.id, selected: false })));
@@ -699,6 +715,25 @@ function Canvas({
     }
     const type = edge.type || defaultEdgeType;
     let path;
+    if (type === "arc") {
+      const isCycle = edge.label === "Cycle";
+      const leftToRight = source.x < target.x;
+      let sweep;
+      if (isCycle) {
+        sweep = leftToRight ? 0 : 1;
+      } else {
+        sweep = leftToRight ? 1 : 0;
+      }
+      const sep = 5;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const sign = isCycle ? 1 : -1;
+      const s = { x: source.x + nx * sign * sep, y: source.y + ny * sign * sep };
+      const t = { x: target.x + nx * sign * sep, y: target.y + ny * sign * sep };
+      path = getEllipticalArcPath(s, t, sweep);
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y };
+    }
     switch (type) {
       case "step":
         path = getStepPath(source, target);

@@ -61,3 +61,20 @@ function getControlPoint(point: Point, dir: 'top' | 'bottom' | 'left' | 'right',
     case 'right': return { x: point.x + offset, y: point.y };
   }
 }
+
+/**
+ * Draw an elliptical arc between two points.
+ * sweep: 0 = arc curves upward, 1 = arc curves downward
+ * ry: vertical radius of the ellipse (controls how "tall" the arc is)
+ */
+export function getEllipticalArcPath(
+  source: Point,
+  target: Point,
+  sweep: 0 | 1 = 0,
+  ry = 20,
+): string {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const rx = Math.sqrt(dx * dx + dy * dy) / 2;
+  return `M ${source.x} ${source.y} A ${rx} ${ry} 0 0 ${sweep} ${target.x} ${target.y}`;
+}
