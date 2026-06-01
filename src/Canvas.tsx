@@ -478,7 +478,10 @@ export function Canvas({
       const mx = (s.x + t.x) / 2 + nx * offset;
       const my = (s.y + t.y) / 2 + ny * offset;
       path = `M ${s.x} ${s.y} Q ${mx} ${my} ${t.x} ${t.y}`;
-      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: mx, labelY: my };
+      // Label at quadratic bezier midpoint (t=0.5): (s + 2*control + t) / 4
+      const lx = (s.x + 2 * mx + t.x) / 4;
+      const ly = (s.y + 2 * my + t.y) / 4;
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: lx, labelY: ly };
     }
 
     return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
