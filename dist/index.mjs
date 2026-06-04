@@ -197,6 +197,12 @@ function getControlPoint(point, dir, offset) {
       return { x: point.x + offset, y: point.y };
   }
 }
+function getEllipticalArcPath(source, target, sweep = 0, ry = 20) {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const rx = Math.sqrt(dx * dx + dy * dy) / 2;
+  return `M ${source.x} ${source.y} A ${rx} ${ry} 0 0 ${sweep} ${target.x} ${target.y}`;
+}
 
 // src/utils/graph.ts
 function getConnectedEdges(node, edges) {
@@ -329,6 +335,7 @@ function Canvas({
   const didFitView = useRef3(false);
   const [lasso, setLasso] = useState2(null);
   const lassoStart = useRef3(null);
+  const lassoOrigin = useRef3(null);
   const [connecting, setConnecting] = useState2(null);
   const [reconnecting, setReconnecting] = useState2(null);
   useEffect2(() => {
@@ -394,6 +401,14 @@ function Canvas({
   const handleMouseMove = useCallback3((e) => {
     handlePanMove(e);
     if (!containerRef.current) return;
+    if (lassoOrigin.current && !lassoStart.current) {
+      const dx2 = e.clientX - lassoOrigin.current.x;
+      const dy2 = e.clientY - lassoOrigin.current.y;
+      if (dx2 * dx2 + dy2 * dy2 >= 25) {
+        const rect2 = containerRef.current.getBoundingClientRect();
+        lassoStart.current = screenToCanvas(lassoOrigin.current.x - rect2.left, lassoOrigin.current.y - rect2.top);
+      }
+    }
     if (lassoStart.current) {
       const rect2 = containerRef.current.getBoundingClientRect();
       const end = screenToCanvas(e.clientX - rect2.left, e.clientY - rect2.top);
@@ -444,6 +459,7 @@ function Canvas({
       });
       onNodesChange?.(changes);
       lassoStart.current = null;
+      lassoOrigin.current = null;
       setLasso(null);
       return;
     }
@@ -513,6 +529,8 @@ function Canvas({
       }
     }
     dragNodeId.current = null;
+    lassoOrigin.current = null;
+    lassoStart.current = null;
     handlePanEnd();
   }, [handlePanEnd, lasso, connecting, reconnecting, nodes, edges, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd, onNodeDragStop, dropOnEdge]);
   const handlePaneMouseDown = useCallback3((e) => {
@@ -521,9 +539,7 @@ function Canvas({
     const isPane = target === e.currentTarget || target.classList.contains("ic-canvas-pane") || target.closest(".ic-canvas-pane") === target;
     if (isPane) {
       if (e.button === 0 && !e.altKey) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
-        lassoStart.current = pos;
+        lassoOrigin.current = { x: e.clientX, y: e.clientY };
       }
       onNodesChange?.(nodes.filter((n) => n.selected).map((n) => ({ type: "select", id: n.id, selected: false })));
       onEdgesChange?.(edges.filter((ed) => ed.selected).map((ed) => ({ type: "select", id: ed.id, selected: false })));
@@ -628,6 +644,25 @@ function Canvas({
     }
     const type = edge.type || defaultEdgeType;
     let path;
+    if (type === "arc") {
+      const isCycle = edge.label === "Cycle";
+      const leftToRight = source.x < target.x;
+      let sweep;
+      if (isCycle) {
+        sweep = leftToRight ? 0 : 1;
+      } else {
+        sweep = leftToRight ? 1 : 0;
+      }
+      const sep = 5;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const sign = isCycle ? 1 : -1;
+      const s = { x: source.x + nx * sign * sep, y: source.y + ny * sign * sep };
+      const t = { x: target.x + nx * sign * sep, y: target.y + ny * sign * sep };
+      path = getEllipticalArcPath(s, t, sweep);
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y };
+    }
     switch (type) {
       case "step":
         path = getStepPath(source, target);
@@ -638,6 +673,24 @@ function Canvas({
       default:
         path = getSmartBezierPath(source, target, sourceDir, targetDir);
         break;
+    }
+    const pairKey = [edge.source, edge.target].sort().join("-");
+    const pairEdges = edges.filter((e) => [e.source, e.target].sort().join("-") === pairKey);
+    if (pairEdges.length > 1) {
+      const idx = pairEdges.indexOf(edge);
+      const isForward = edge.source < edge.target;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const offset = 35 * ((isForward ? idx % 2 : (idx + 1) % 2) === 0 ? 1 : -1);
+      const sep = nx * (offset > 0 ? 2 : -2);
+      const sepY = ny * (offset > 0 ? 2 : -2);
+      const s = { x: source.x + sep, y: source.y + sepY };
+      const t = { x: target.x + sep, y: target.y + sepY };
+      const mx = (s.x + t.x) / 2 + nx * offset;
+      const my = (s.y + t.y) / 2 + ny * offset;
+      path = `M ${s.x} ${s.y} Q ${mx} ${my} ${t.x} ${t.y}`;
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: mx, labelY: my };
     }
     return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
   }
@@ -653,7 +706,7 @@ function Canvas({
     return { x, y };
   }
   function renderEdge(edge) {
-    const { path, sourcePos, targetPos, sx, sy, tx, ty } = calcEdgePath(edge);
+    const { path, sourcePos, targetPos, sx, sy, tx, ty, labelX, labelY } = calcEdgePath(edge);
     const CustomEdge = edgeTypes[edge.type || ""];
     if (CustomEdge) {
       return /* @__PURE__ */ jsx2("g", { onClick: (e) => handleEdgeClick(e, edge.id), style: { cursor: "pointer" }, children: /* @__PURE__ */ jsx2(
@@ -676,7 +729,7 @@ function Canvas({
         }
       ) }, edge.id);
     }
-    const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+    const mid = { x: labelX ?? (sx + tx) / 2, y: labelY ?? (sy + ty) / 2 };
     const angle = Math.atan2(ty - sy, tx - sx);
     const labelOffsetX = -Math.sin(angle) * 14;
     const labelOffsetY = Math.cos(angle) * 14;

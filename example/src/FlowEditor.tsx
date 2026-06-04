@@ -22,14 +22,17 @@ export default function FlowEditor() {
       { id: '1', type: 'flow', position: { x: 250, y: 40 }, data: { shape: 'start', label: 'Start' }, width: 36, height: 36 },
       { id: '2', type: 'flow', position: { x: 200, y: 180 }, data: { shape: 'if', label: 'True?' }, width: 36, height: 36 },
       { id: '3', type: 'flow', position: { x: 420, y: 180 }, data: { shape: 'assign', label: 'Assign' }, width: 36, height: 36 },
-      { id: '4', type: 'flow', position: { x: 340, y: 320 }, data: { shape: 'end', label: 'End' }, width: 36, height: 36 },
-      { id: '5', type: 'flow', position: { x: 200, y: 380 }, data: { shape: 'end', label: 'End' }, width: 36, height: 36 },
+      { id: '6', type: 'flow', position: { x: 200, y: 350 }, data: { shape: 'for-each', label: 'For Each' }, width: 36, height: 36 },
+      { id: '4', type: 'flow', position: { x: 200, y: 500 }, data: { shape: 'end', label: 'End' }, width: 36, height: 36 },
+      { id: '5', type: 'flow', position: { x: 50, y: 500 }, data: { shape: 'end', label: 'End' }, width: 36, height: 36 },
     ],
     initialEdges: [
       { id: 'e1', source: '1', target: '2', type: 'straight' },
-      { id: 'e2', source: '2', target: '3', type: 'straight', label: 'True' },
+      { id: 'e2', source: '2', target: '6', type: 'straight' },
       { id: 'e3', source: '2', target: '5', type: 'straight', label: 'False' },
-      { id: 'e4', source: '3', target: '4', type: 'straight' },
+      { id: 'e4', source: '6', target: '3', label: 'Cycle' },
+      { id: 'e5', source: '3', target: '6', label: 'Return' },
+      { id: 'e6', source: '6', target: '4', type: 'straight' },
     ],
   });
 

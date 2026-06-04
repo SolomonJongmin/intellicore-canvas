@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, MouseEvent, DragEvent, Compon
 import type { CanvasProps, Node, Edge, Point, Connection, ConnectionLineProps } from './types';
 import { useViewport } from './hooks/useViewport';
 import { useCopyPaste } from './hooks/useCopyPaste';
-import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath } from './utils/path';
+import { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartBezierPath, getEllipticalArcPath } from './utils/path';
 import { getEdgeAtPoint } from './utils/graph';
 import { DefaultConnectionLine } from './components/ConnectionLine';
 import { isLicensed } from './license';
@@ -58,6 +58,7 @@ export function Canvas({
   // Lasso selection state
   const [lasso, setLasso] = useState<{ start: Point; end: Point } | null>(null);
   const lassoStart = useRef<Point | null>(null);
+  const lassoOrigin = useRef<{ x: number; y: number } | null>(null);
 
   // Drag-to-connect state
   const [connecting, setConnecting] = useState<{ sourceId: string; sourcePort?: string; mouse: Point } | null>(null);
@@ -143,7 +144,15 @@ export function Canvas({
     handlePanMove(e);
     if (!containerRef.current) return;
 
-    // Lasso
+    // Lasso — start only after 5px drag threshold
+    if (lassoOrigin.current && !lassoStart.current) {
+      const dx = e.clientX - lassoOrigin.current.x;
+      const dy = e.clientY - lassoOrigin.current.y;
+      if (dx * dx + dy * dy >= 25) {
+        const rect = containerRef.current.getBoundingClientRect();
+        lassoStart.current = screenToCanvas(lassoOrigin.current.x - rect.left, lassoOrigin.current.y - rect.top);
+      }
+    }
     if (lassoStart.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const end = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
@@ -204,6 +213,7 @@ export function Canvas({
       });
       onNodesChange?.(changes);
       lassoStart.current = null;
+      lassoOrigin.current = null;
       setLasso(null);
       return;
     }
@@ -287,6 +297,8 @@ export function Canvas({
     }
 
     dragNodeId.current = null;
+    lassoOrigin.current = null;
+    lassoStart.current = null;
     handlePanEnd();
   }, [handlePanEnd, lasso, connecting, reconnecting, nodes, edges, onNodesChange, onConnect, onConnectEnd, onEdgesChange, onReconnect, onReconnectEnd, onNodeDragStop, dropOnEdge]);
 
@@ -296,9 +308,7 @@ export function Canvas({
     const isPane = target === e.currentTarget || target.classList.contains('ic-canvas-pane') || target.closest('.ic-canvas-pane') === target;
     if (isPane) {
       if (e.button === 0 && !e.altKey) {
-        const rect = containerRef.current!.getBoundingClientRect();
-        const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
-        lassoStart.current = pos;
+        lassoOrigin.current = { x: e.clientX, y: e.clientY };
       }
       onNodesChange?.(nodes.filter((n) => n.selected).map((n) => ({ type: 'select' as const, id: n.id, selected: false })));
       onEdgesChange?.(edges.filter((ed) => ed.selected).map((ed) => ({ type: 'select' as const, id: ed.id, selected: false })));
@@ -374,7 +384,7 @@ export function Canvas({
   }, [onDragOver]);
 
   // Edge path calculation - radial border intersection
-  function calcEdgePath(edge: Edge): { path: string; sourcePos: string; targetPos: string; sx: number; sy: number; tx: number; ty: number } {
+  function calcEdgePath(edge: Edge): { path: string; sourcePos: string; targetPos: string; sx: number; sy: number; tx: number; ty: number; labelX?: number; labelY?: number } {
     const sourceNode = nodes.find((n) => n.id === edge.source);
     const targetNode = nodes.find((n) => n.id === edge.target);
     if (!sourceNode || !targetNode) return { path: '', sourcePos: 'bottom', targetPos: 'top', sx: 0, sy: 0, tx: 0, ty: 0 };
@@ -433,10 +443,59 @@ export function Canvas({
 
     const type = edge.type || defaultEdgeType;
     let path: string;
+
+    if (type === 'arc') {
+      // Cycle = upper arc, return = lower arc
+      const isCycle = edge.label === 'Cycle';
+      // Sweep direction depends on whether source is left or right of target
+      const leftToRight = source.x < target.x;
+      // For left-to-right: sweep=0 is upper arc, sweep=1 is lower arc
+      // For right-to-left: it's reversed
+      let sweep: 0 | 1;
+      if (isCycle) {
+        sweep = leftToRight ? 0 : 1;
+      } else {
+        sweep = leftToRight ? 1 : 0;
+      }
+      // Perpendicular offset to separate the two arcs
+      const sep = 5;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const sign = isCycle ? 1 : -1;
+      const s: Point = { x: source.x + nx * sign * sep, y: source.y + ny * sign * sep };
+      const t: Point = { x: target.x + nx * sign * sep, y: target.y + ny * sign * sep };
+      path = getEllipticalArcPath(s, t, sweep);
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y };
+    }
+
     switch (type) {
       case 'step': path = getStepPath(source, target); break;
       case 'straight': path = getStraightPath(source, target); break;
       default: path = getSmartBezierPath(source, target, sourceDir, targetDir); break;
+    }
+
+    // If there are multiple edges between the same two nodes, curve them slightly
+    const pairKey = [edge.source, edge.target].sort().join('-');
+    const pairEdges = edges.filter((e) => [e.source, e.target].sort().join('-') === pairKey);
+    if (pairEdges.length > 1) {
+      const idx = pairEdges.indexOf(edge);
+      const isForward = edge.source < edge.target;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const offset = 35 * ((isForward ? idx % 2 : (idx + 1) % 2) === 0 ? 1 : -1);
+      const sep = nx * (offset > 0 ? 2 : -2);
+      const sepY = ny * (offset > 0 ? 2 : -2);
+      const s = { x: source.x + sep, y: source.y + sepY };
+      const t = { x: target.x + sep, y: target.y + sepY };
+      const mx = (s.x + t.x) / 2 + nx * offset;
+      const my = (s.y + t.y) / 2 + ny * offset;
+      path = `M ${s.x} ${s.y} Q ${mx} ${my} ${t.x} ${t.y}`;
+      // Label at quadratic bezier midpoint (t=0.5): (s + 2*control + t) / 4
+      const lx = (s.x + 2 * mx + t.x) / 4;
+      const ly = (s.y + 2 * my + t.y) / 4;
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: lx, labelY: ly };
     }
 
     return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
@@ -459,7 +518,7 @@ export function Canvas({
 
   // Render edge (custom or default)
   function renderEdge(edge: Edge) {
-    const { path, sourcePos, targetPos, sx, sy, tx, ty } = calcEdgePath(edge);
+    const { path, sourcePos, targetPos, sx, sy, tx, ty, labelX, labelY } = calcEdgePath(edge);
     const CustomEdge = edgeTypes[edge.type || ''];
 
     if (CustomEdge) {
@@ -486,7 +545,7 @@ export function Canvas({
     }
 
     // Default edge rendering
-    const mid = { x: (sx + tx) / 2, y: (sy + ty) / 2 };
+    const mid = { x: labelX ?? (sx + tx) / 2, y: labelY ?? (sy + ty) / 2 };
     // Label offset perpendicular to edge direction
     const angle = Math.atan2(ty - sy, tx - sx);
     const labelOffsetX = -Math.sin(angle) * 14;

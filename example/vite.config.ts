@@ -9,4 +9,9 @@ export default defineConfig({
       '@intellicore/visual-canvas': path.resolve(__dirname, '../src/index.ts'),
     },
   },
+  server: {
+    watch: {
+      ignored: ['!**/node_modules/**'],
+    },
+  },
 });
