@@ -415,6 +415,17 @@ export function Canvas({
     if (forcedSource) source = forcedSource;
     if (forcedTarget) target = forcedTarget;
 
+    // ERD: Override source point to FK row position
+    const edgeData = edge.data as Record<string, any> | undefined;
+    if (edgeData?.sourceColIndex !== undefined) {
+      const HEADER_H = 33, ROW_H = 22;
+      const colIndex = edgeData.sourceColIndex as number;
+      const rowY = sourceNode.position.y + HEADER_H + colIndex * ROW_H + ROW_H / 2;
+      // Always exit from left or right side of the row
+      const dx2 = tCx - sCx;
+      source = { x: dx2 >= 0 ? sourceNode.position.x + sw : sourceNode.position.x, y: rowY };
+    }
+
     // Determine direction for smart bezier
     const dx = tCx - sCx;
     const dy = tCy - sCy;

@@ -612,8 +612,28 @@ function Canvas({
     const sCy = sourceNode.position.y + sh / 2;
     const tCx = targetNode.position.x + tw / 2;
     const tCy = targetNode.position.y + th / 2;
-    const source = getBorderPoint(sCx, sCy, sw, sh, tCx, tCy);
-    const target = getBorderPoint(tCx, tCy, tw, th, sCx, sCy);
+    let source = getBorderPoint(sCx, sCy, sw, sh, tCx, tCy);
+    let target = getBorderPoint(tCx, tCy, tw, th, sCx, sCy);
+    const getHandlePoint = (cx, cy, w, h, port) => {
+      if (!port) return null;
+      if (port.includes("top")) return { x: cx, y: cy - h / 2 };
+      if (port.includes("bottom")) return { x: cx, y: cy + h / 2 };
+      if (port.includes("left")) return { x: cx - w / 2, y: cy };
+      if (port.includes("right")) return { x: cx + w / 2, y: cy };
+      return null;
+    };
+    const forcedSource = getHandlePoint(sCx, sCy, sw, sh, edge.sourcePort);
+    const forcedTarget = getHandlePoint(tCx, tCy, tw, th, edge.targetPort);
+    if (forcedSource) source = forcedSource;
+    if (forcedTarget) target = forcedTarget;
+    const edgeData = edge.data;
+    if (edgeData?.sourceColIndex !== void 0) {
+      const HEADER_H = 33, ROW_H = 22;
+      const colIndex = edgeData.sourceColIndex;
+      const rowY = sourceNode.position.y + HEADER_H + colIndex * ROW_H + ROW_H / 2;
+      const dx2 = tCx - sCx;
+      source = { x: dx2 >= 0 ? sourceNode.position.x + sw : sourceNode.position.x, y: rowY };
+    }
     const dx = tCx - sCx;
     const dy = tCy - sCy;
     let sourceDir;
@@ -690,7 +710,9 @@ function Canvas({
       const mx = (s.x + t.x) / 2 + nx * offset;
       const my = (s.y + t.y) / 2 + ny * offset;
       path = `M ${s.x} ${s.y} Q ${mx} ${my} ${t.x} ${t.y}`;
-      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: mx, labelY: my };
+      const lx = (s.x + 2 * mx + t.x) / 4;
+      const ly = (s.y + 2 * my + t.y) / 4;
+      return { path, sourcePos: sourceDir, targetPos: targetDir, sx: s.x, sy: s.y, tx: t.x, ty: t.y, labelX: lx, labelY: ly };
     }
     return { path, sourcePos: sourceDir, targetPos: targetDir, sx: source.x, sy: source.y, tx: target.x, ty: target.y };
   }

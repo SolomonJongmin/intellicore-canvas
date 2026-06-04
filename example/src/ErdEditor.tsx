@@ -1,17 +1,31 @@
 import { DragEvent, useRef, useEffect, useState } from 'react';
 import { Canvas, useCanvasHistory, MiniMapInner, Point } from '@intellicore/visual-canvas';
+import type { EdgeProps } from '@intellicore/visual-canvas';
+
+// Column row height constants (must match EntityNode rendering)
+const HEADER_HEIGHT = 33;
+const ROW_HEIGHT = 22;
+
+// Helper: get Y offset for a specific column index within a node
+function getColumnY(nodeY: number, colIndex: number): number {
+  return nodeY + HEADER_HEIGHT + ROW_HEIGHT * colIndex + ROW_HEIGHT / 2;
+}
 
 export default function ErdEditor() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, undo, redo, canUndo, canRedo } = useCanvasHistory({
     initialNodes: [
-      { id: 'entity1', type: 'entity', position: { x: 80, y: 200 }, data: { name: 'Entity1', columns: [{ name: 'Id', pk: true }] }, width: 160 },
-      { id: 'entity2', type: 'entity', position: { x: 300, y: 60 }, data: { name: 'Entity2', columns: [{ name: 'Id', pk: true }, { name: 'OpportunityId', fk: true }] }, width: 180 },
-      { id: 'entity3', type: 'entity', position: { x: 550, y: 60 }, data: { name: 'Entity3', columns: [{ name: 'Id', pk: true }] }, width: 140 },
-      { id: 'opportunity', type: 'entity', position: { x: 380, y: 200 }, data: { name: 'Opportunity', columns: [{ name: 'Id', pk: true }, { name: 'Name' }, { name: 'Attribute1' }, { name: 'Attribute2' }, { name: 'Attribute3' }, { name: 'Entity1Id', fk: true }] }, width: 200 },
+      { id: 'entity2', type: 'entity', position: { x: 50, y: 30 }, data: { name: 'Entity2', columns: [{ name: 'Id', pk: true }, { name: 'Entity1Id', fk: true }] }, width: 160, height: HEADER_HEIGHT + 2 * ROW_HEIGHT },
+      { id: 'order', type: 'entity', position: { x: 380, y: 20 }, data: { name: 'Order', columns: [{ name: 'Id', pk: true }, { name: 'Attribute1' }, { name: 'Qty' }, { name: 'Entity1Id2', fk: true }, { name: 'Entity1Id3', fk: true }] }, width: 180, height: HEADER_HEIGHT + 5 * ROW_HEIGHT },
+      { id: 'entity1', type: 'entity', position: { x: 280, y: 250 }, data: { name: 'Entity1', columns: [{ name: 'Id', pk: true }, { name: 'Attribute1' }, { name: 'Entity3Id', fk: true }, { name: 'Entity4Id', fk: true }] }, width: 180, height: HEADER_HEIGHT + 4 * ROW_HEIGHT },
+      { id: 'entity3', type: 'entity', position: { x: 30, y: 260 }, data: { name: 'Entity3', columns: [{ name: 'Id', pk: true }, { name: 'Attribute1' }, { name: 'Attribute2' }, { name: 'Attribute3' }] }, width: 170, height: HEADER_HEIGHT + 4 * ROW_HEIGHT },
+      { id: 'entity4', type: 'entity', position: { x: 530, y: 280 }, data: { name: 'Entity4', columns: [{ name: 'Id', pk: true }] }, width: 140, height: HEADER_HEIGHT + 1 * ROW_HEIGHT },
     ],
     initialEdges: [
-      { id: 'e1', source: 'entity2', target: 'opportunity', type: 'bezier' },
-      { id: 'e2', source: 'opportunity', target: 'entity1', type: 'bezier' },
+      { id: 'e1', source: 'entity2', target: 'entity1', type: 'crowfoot', data: { sourceColIndex: 1 } },
+      { id: 'e2', source: 'order', target: 'entity1', type: 'crowfoot', data: { sourceColIndex: 3 } },
+      { id: 'e3', source: 'order', target: 'entity1', type: 'crowfoot', data: { sourceColIndex: 4 } },
+      { id: 'e4', source: 'entity1', target: 'entity3', type: 'crowfoot', data: { sourceColIndex: 2 } },
+      { id: 'e5', source: 'entity1', target: 'entity4', type: 'crowfoot', data: { sourceColIndex: 3 } },
     ],
   });
 
@@ -67,7 +81,8 @@ export default function ErdEditor() {
           onDrop={handleDrop as any}
           onDragOver={(e: any) => e.preventDefault()}
           nodeTypes={{ entity: EntityNode }}
-          defaultEdgeType="bezier"
+          edgeTypes={{ crowfoot: CrowFootEdge }}
+          defaultEdgeType="crowfoot"
           fitView
           style={{ background: '#fff' }}
         >
@@ -78,7 +93,34 @@ export default function ErdEditor() {
   );
 }
 
-// --- Entity Node (OutSystems ERD style) ---
+// --- Crow's Foot Edge ---
+function CrowFootEdge({ sourceX, sourceY, targetX, targetY, selected }: EdgeProps) {
+  const color = selected ? '#2563eb' : '#374151';
+
+  // Bezier curve
+  const midX = (sourceX + targetX) / 2;
+  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
+
+  // Crow's foot "-<" at source (FK row)
+  const len = 30;
+  const dir = targetX >= sourceX ? 1 : -1;
+  const tipX = sourceX + dir * 8;
+  const a1X = tipX - dir * len;
+  const a1Y = sourceY - 18;
+  const a2X = tipX - dir * len;
+  const a2Y = sourceY + 18;
+
+  return (
+    <g>
+      <path d={path} fill="none" stroke="transparent" strokeWidth={12} pointerEvents="stroke" />
+      <path d={path} fill="none" stroke={color} strokeWidth={selected ? 2.5 : 1.5} />
+      <line x1={tipX} y1={sourceY} x2={a1X} y2={a1Y} stroke={color} strokeWidth={1.5} />
+      <line x1={tipX} y1={sourceY} x2={a2X} y2={a2Y} stroke={color} strokeWidth={1.5} />
+    </g>
+  );
+}
+
+// --- Entity Node ---
 function EntityNode({ id, data, selected }: { id: string; data: any; selected: boolean; ports: any[] }) {
   const columns: { name: string; pk?: boolean; fk?: boolean }[] = data.columns || [];
   return (
@@ -92,17 +134,15 @@ function EntityNode({ id, data, selected }: { id: string; data: any; selected: b
       color: '#1f2937',
       overflow: 'hidden',
     }}>
-      {/* Header */}
-      <div style={{ padding: '8px 10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid #e5e7eb' }}>
+      <div style={{ padding: '8px 10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, height: HEADER_HEIGHT, boxSizing: 'border-box', borderBottom: '1px solid #e5e7eb' }}>
         <EntityIcon />
         {data.name || id}
       </div>
-      {/* Columns */}
       <div style={{ padding: '4px 0' }}>
         {columns.map((col, i) => (
-          <div key={i} style={{ padding: '3px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: '#374151' }}>
+          <div key={i} style={{ padding: '3px 10px', height: ROW_HEIGHT, boxSizing: 'border-box', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <ColumnIcon fk={col.fk} />
-            <span style={{ fontWeight: col.pk ? 600 : 400 }}>{col.name}</span>
+            <span style={{ fontWeight: col.pk ? 600 : 400, color: col.fk ? '#c0392b' : '#374151' }}>{col.name}</span>
           </div>
         ))}
       </div>
@@ -122,10 +162,20 @@ function EntityIcon() {
 }
 
 function ColumnIcon({ fk }: { fk?: boolean }) {
+  if (fk) {
+    const colors = ['#e74c3c', '#27ae60', '#2980b9', '#e74c3c', '#27ae60', '#2980b9', '#e74c3c', '#27ae60', '#2980b9'];
+    return (
+      <svg width="12" height="12" viewBox="0 0 12 12">
+        {[0, 4, 8].map((y, yi) => [0, 4, 8].map((x, xi) => (
+          <rect key={`${x}-${y}`} x={x} y={y} width="3" height="3" rx="0.5" fill={colors[yi * 3 + xi]} opacity={0.8} />
+        )))}
+      </svg>
+    );
+  }
   return (
     <svg width="12" height="12" viewBox="0 0 12 12">
       {[0, 4, 8].map((y) => [0, 4, 8].map((x) => (
-        <rect key={`${x}-${y}`} x={x} y={y} width="3" height="3" rx="0.5" fill={fk ? '#8b5cf6' : '#1a73e8'} opacity={0.7} />
+        <rect key={`${x}-${y}`} x={x} y={y} width="3" height="3" rx="0.5" fill="#1a73e8" opacity={0.7} />
       )))}
     </svg>
   );
