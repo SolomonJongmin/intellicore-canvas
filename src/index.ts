@@ -3,6 +3,8 @@ export { initCanvas } from './license';
 
 // Components
 export { Canvas, MiniMapInner } from './Canvas';
+export { ErdCanvas } from './components/ErdCanvas';
+export { EntityNode } from './components/nodes/EntityNode';
 export { Handle, checkConnectable } from './components/Handle';
 export { NodeResizer, NodeResizeControl } from './components/nodes/NodeResizer';
 export { NodeToolbar } from './components/nodes/NodeToolbar';
@@ -54,3 +56,6 @@ export type {
   ShapeNodeData,
   CanvasProps,
 } from './types';
+
+export type { ErdEntity, ErdRelation, ErdCanvasProps } from './components/ErdCanvas';
+export type { EntityColumn, EntityNodeData } from './components/nodes/EntityNode';

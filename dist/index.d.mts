@@ -198,6 +198,45 @@ declare function MiniMapInner({ nodes, edges, viewport, containerWidth, containe
     height?: number;
 }): react_jsx_runtime.JSX.Element | null;
 
+interface EntityColumn {
+    name: string;
+    pk?: boolean;
+    fk?: boolean;
+}
+interface EntityNodeData {
+    name: string;
+    columns: EntityColumn[];
+    onContextMenu?: (event: MouseEvent$1) => void;
+}
+declare function EntityNode({ id, data, selected }: NodeProps<EntityNodeData>): react_jsx_runtime.JSX.Element;
+
+interface ErdEntity {
+    id: string;
+    name: string;
+    x: number;
+    y: number;
+    columns: EntityColumn[];
+}
+interface ErdRelation {
+    id?: string;
+    sourceEntityId: string;
+    sourceColumnIndex: number;
+    targetEntityId: string;
+}
+interface ErdCanvasProps {
+    entities: ErdEntity[];
+    relations: ErdRelation[];
+    selectedEntityId?: string | null;
+    onEntitySelect?: (id: string | null) => void;
+    onEntityMove?: (id: string, x: number, y: number) => void;
+    onEntityContextMenu?: (id: string, event: React.MouseEvent) => void;
+    onCanvasContextMenu?: (event: React.MouseEvent, position: Point) => void;
+    onDrop?: (event: React.DragEvent, position: Point) => void;
+    fitView?: boolean;
+    style?: CSSProperties;
+}
+declare function ErdCanvas({ entities, relations, selectedEntityId, onEntitySelect, onEntityMove, onEntityContextMenu, onCanvasContextMenu, onDrop, fitView, style, }: ErdCanvasProps): react_jsx_runtime.JSX.Element;
+
 interface HandleProps {
     type: 'source' | 'target';
     position: 'top' | 'bottom' | 'left' | 'right';
@@ -475,4 +514,4 @@ declare function getOrthogonalPath(source: Point, target: Point, sourceDir: 'top
  */
 declare function nodesToObstacles(nodes: Node[], excludeIds?: string[]): Rect[];
 
-export { AnimatedEdge, BaseEdge, BezierEdge, Canvas, type CanvasProps, type ConnectableParams, type Connection, type ConnectionLineProps, DefaultConnectionLine, DefaultNode, type Edge, type EdgeChange, EdgeLabelRenderer, type EdgeProps, type EdgeType, type EdgeTypeMap, Handle, MiniMapInner, type Node, type NodeChange, type NodeProps, NodeResizeControl, NodeResizer, NodeToolbar, type NodeTypeMap, OrthogonalEdge, type Point, type Port, RotateHandle, SHAPE_SIZE, ShapeNode, type ShapeNodeData, type ShapeType, SmoothStepEdge, StepEdge, StraightEdge, type Viewport, applyEdgeChanges, applyNodeChanges, checkConnectable, getBezierPath, getClosestNode, getConnectedEdges, getEdgeAtPoint, getIncomers, getIntersectingNodes, getOrthogonalPath, getOutgoers, getPortPosition, getSmartBezierPath, getStepPath, getStraightPath, initCanvas, isIntersecting, nodesToObstacles, pointToSegmentDistance, shapePaths, useAutoLayout, useCanvas, useCanvasHistory, useCopyPaste, useEasyConnect, useInteractions, useViewport };
+export { AnimatedEdge, BaseEdge, BezierEdge, Canvas, type CanvasProps, type ConnectableParams, type Connection, type ConnectionLineProps, DefaultConnectionLine, DefaultNode, type Edge, type EdgeChange, EdgeLabelRenderer, type EdgeProps, type EdgeType, type EdgeTypeMap, type EntityColumn, EntityNode, type EntityNodeData, ErdCanvas, type ErdCanvasProps, type ErdEntity, type ErdRelation, Handle, MiniMapInner, type Node, type NodeChange, type NodeProps, NodeResizeControl, NodeResizer, NodeToolbar, type NodeTypeMap, OrthogonalEdge, type Point, type Port, RotateHandle, SHAPE_SIZE, ShapeNode, type ShapeNodeData, type ShapeType, SmoothStepEdge, StepEdge, StraightEdge, type Viewport, applyEdgeChanges, applyNodeChanges, checkConnectable, getBezierPath, getClosestNode, getConnectedEdges, getEdgeAtPoint, getIncomers, getIntersectingNodes, getOrthogonalPath, getOutgoers, getPortPosition, getSmartBezierPath, getStepPath, getStraightPath, initCanvas, isIntersecting, nodesToObstacles, pointToSegmentDistance, shapePaths, useAutoLayout, useCanvas, useCanvasHistory, useCopyPaste, useEasyConnect, useInteractions, useViewport };

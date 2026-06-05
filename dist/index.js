@@ -27,6 +27,8 @@ __export(index_exports, {
   DefaultConnectionLine: () => DefaultConnectionLine,
   DefaultNode: () => DefaultNode2,
   EdgeLabelRenderer: () => EdgeLabelRenderer,
+  EntityNode: () => EntityNode,
+  ErdCanvas: () => ErdCanvas,
   Handle: () => Handle,
   MiniMapInner: () => MiniMapInner,
   NodeResizeControl: () => NodeResizeControl,
@@ -1068,8 +1070,294 @@ function MiniMapInner({ nodes, edges, viewport, containerWidth, containerHeight,
   ] }) });
 }
 
-// src/components/Handle.tsx
+// src/components/ErdCanvas.tsx
+var import_react5 = require("react");
+
+// src/hooks/useCanvasHistory.ts
+var import_react4 = require("react");
+
+// src/utils/changes.ts
+function applyNodeChanges(changes, nodes) {
+  let result = [...nodes];
+  for (const change of changes) {
+    switch (change.type) {
+      case "position":
+        result = result.map((n) => n.id === change.id ? { ...n, position: change.position } : n);
+        break;
+      case "select":
+        result = result.map((n) => n.id === change.id ? { ...n, selected: change.selected } : n);
+        break;
+      case "remove":
+        result = result.filter((n) => n.id !== change.id);
+        break;
+      case "add":
+        result.push(change.node);
+        break;
+      case "data":
+        result = result.map((n) => n.id === change.id ? { ...n, data: { ...n.data, ...change.data } } : n);
+        break;
+      case "dimensions":
+        result = result.map((n) => n.id === change.id ? { ...n, width: change.width, height: change.height } : n);
+        break;
+      case "rotation":
+        result = result.map((n) => n.id === change.id ? { ...n, rotation: change.rotation } : n);
+        break;
+    }
+  }
+  return result;
+}
+function applyEdgeChanges(changes, edges) {
+  let result = [...edges];
+  for (const change of changes) {
+    switch (change.type) {
+      case "select":
+        result = result.map((e) => e.id === change.id ? { ...e, selected: change.selected } : e);
+        break;
+      case "remove":
+        result = result.filter((e) => e.id !== change.id);
+        break;
+      case "add":
+        result.push(change.edge);
+        break;
+    }
+  }
+  return result;
+}
+
+// src/hooks/useCanvasHistory.ts
+function useCanvasHistory(options = {}) {
+  const { initialNodes = [], initialEdges = [], maxHistory = 50, onStateChange } = options;
+  const [nodes, setNodes] = (0, import_react4.useState)(initialNodes);
+  const [edges, setEdges] = (0, import_react4.useState)(initialEdges);
+  const past = (0, import_react4.useRef)([]);
+  const future = (0, import_react4.useRef)([]);
+  const skipRecord = (0, import_react4.useRef)(false);
+  const record = (0, import_react4.useCallback)((prevNodes, prevEdges) => {
+    if (skipRecord.current) {
+      skipRecord.current = false;
+      return;
+    }
+    past.current = [...past.current.slice(-(maxHistory - 1)), { nodes: prevNodes, edges: prevEdges }];
+    future.current = [];
+  }, [maxHistory]);
+  const onNodesChange = (0, import_react4.useCallback)((changes) => {
+    setNodes((prev) => {
+      const dominated = changes.some((c) => c.type === "position" || c.type === "remove" || c.type === "add");
+      if (dominated) record(prev, edges);
+      const next = applyNodeChanges(changes, prev);
+      if (dominated && onStateChange) onStateChange({ nodes: next, edges });
+      return next;
+    });
+  }, [edges, record, onStateChange]);
+  const onEdgesChange = (0, import_react4.useCallback)((changes) => {
+    setEdges((prev) => {
+      const dominated = changes.some((c) => c.type === "remove" || c.type === "add");
+      if (dominated) record(nodes, prev);
+      const next = applyEdgeChanges(changes, prev);
+      if (dominated && onStateChange) onStateChange({ nodes, edges: next });
+      return next;
+    });
+  }, [nodes, record, onStateChange]);
+  const onConnect = (0, import_react4.useCallback)((connection) => {
+    setEdges((prev) => {
+      record(nodes, prev);
+      const next = [...prev, { id: `e-${Date.now()}`, source: connection.source, sourcePort: connection.sourcePort, target: connection.target, targetPort: connection.targetPort }];
+      if (onStateChange) onStateChange({ nodes, edges: next });
+      return next;
+    });
+  }, [nodes, record, onStateChange]);
+  const undo = (0, import_react4.useCallback)(() => {
+    const prev = past.current.pop();
+    if (!prev) return;
+    future.current.push({ nodes, edges });
+    skipRecord.current = true;
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    if (onStateChange) onStateChange(prev);
+  }, [nodes, edges, onStateChange]);
+  const redo = (0, import_react4.useCallback)(() => {
+    const next = future.current.pop();
+    if (!next) return;
+    past.current.push({ nodes, edges });
+    skipRecord.current = true;
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    if (onStateChange) onStateChange(next);
+  }, [nodes, edges, onStateChange]);
+  return {
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    undo,
+    redo,
+    canUndo: past.current.length > 0,
+    canRedo: future.current.length > 0
+  };
+}
+
+// src/components/nodes/EntityNode.tsx
 var import_jsx_runtime3 = require("react/jsx-runtime");
+function EntityIcon() {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { width: "14", height: "14", viewBox: "0 0 14 14", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x: x + 1, y: y + 1, width: "3", height: "3", rx: "0.5", fill: "#1a73e8" }, `${x}-${y}`))) });
+}
+function ColumnIcon({ fk }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: fk ? "#8b6914" : "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
+}
+function EntityNode({ id, data, selected }) {
+  const columns = data.columns || [];
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+    "div",
+    {
+      onContextMenu: data.onContextMenu,
+      style: {
+        minWidth: 140,
+        border: `2px solid ${selected ? "#1a73e8" : "#d1d5db"}`,
+        borderRadius: 4,
+        background: "#fff",
+        fontSize: 13,
+        color: "#1f2937",
+        overflow: "hidden"
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #e5e7eb" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EntityIcon, {}),
+          data.name || id
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { padding: "3px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "#374151" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ColumnIcon, { fk: col.fk }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { fontWeight: col.pk ? 600 : 400 }, children: col.name })
+        ] }, i)) })
+      ]
+    }
+  );
+}
+
+// src/components/ErdCanvas.tsx
+var import_jsx_runtime4 = require("react/jsx-runtime");
+var HEADER_HEIGHT = 33;
+var ROW_HEIGHT = 22;
+function ErdCanvas({
+  entities,
+  relations,
+  selectedEntityId,
+  onEntitySelect,
+  onEntityMove,
+  onEntityContextMenu,
+  onCanvasContextMenu,
+  onDrop,
+  fitView = true,
+  style
+}) {
+  const initialNodes = (0, import_react5.useMemo)(
+    () => entities.map((ent) => ({
+      id: ent.id,
+      type: "entity",
+      position: { x: ent.x, y: ent.y },
+      data: {
+        name: ent.name,
+        columns: ent.columns,
+        onContextMenu: onEntityContextMenu ? (e) => onEntityContextMenu(ent.id, e) : void 0
+      },
+      width: 170,
+      height: HEADER_HEIGHT + ent.columns.length * ROW_HEIGHT + 8,
+      ports: buildPorts(ent.columns)
+    })),
+    [entities, onEntityContextMenu]
+  );
+  const initialEdges = (0, import_react5.useMemo)(
+    () => relations.map((rel, i) => ({
+      id: rel.id || `rel-${i}`,
+      source: rel.sourceEntityId,
+      sourcePort: `fk-${rel.sourceColumnIndex}`,
+      target: rel.targetEntityId,
+      targetPort: "target",
+      type: "crowfoot"
+    })),
+    [relations]
+  );
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useCanvasHistory({ initialNodes, initialEdges });
+  const prevPositions = (0, import_react5.useRef)(/* @__PURE__ */ new Map());
+  (0, import_react5.useEffect)(() => {
+    if (!onEntityMove) return;
+    for (const node of nodes) {
+      const prev = prevPositions.current.get(node.id);
+      if (prev && (Math.abs(prev.x - node.position.x) > 1 || Math.abs(prev.y - node.position.y) > 1)) {
+        onEntityMove(node.id, node.position.x, node.position.y);
+      }
+      prevPositions.current.set(node.id, { ...node.position });
+    }
+  }, [nodes, onEntityMove]);
+  const containerRef = (0, import_react5.useRef)(null);
+  const handleDrop = (0, import_react5.useCallback)((e, position) => {
+    onDrop?.(e, position);
+  }, [onDrop]);
+  const handleContextMenu = (0, import_react5.useCallback)((e) => {
+    if (onCanvasContextMenu && !e.target.closest("[data-entity-node]")) {
+      e.preventDefault();
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        onCanvasContextMenu(e, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    }
+  }, [onCanvasContextMenu]);
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    "div",
+    {
+      ref: containerRef,
+      style: { width: "100%", height: "100%", position: "relative", ...style },
+      onContextMenu: handleContextMenu,
+      children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        Canvas,
+        {
+          nodes,
+          edges,
+          onNodesChange,
+          onEdgesChange,
+          onConnect,
+          onDrop: handleDrop,
+          onDragOver: (e) => e.preventDefault(),
+          nodeTypes: { entity: EntityNode },
+          edgeTypes: { crowfoot: CrowFootEdge },
+          defaultEdgeType: "crowfoot",
+          fitView,
+          style: { background: "#fff" }
+        }
+      )
+    }
+  );
+}
+function buildPorts(columns) {
+  const ports = [
+    { id: "target", type: "input", position: "left", offset: HEADER_HEIGHT / 2 }
+  ];
+  columns.forEach((col, i) => {
+    if (col.fk) {
+      ports.push({ id: `fk-${i}`, type: "output", position: "right", offset: HEADER_HEIGHT + ROW_HEIGHT * i + ROW_HEIGHT / 2 });
+    }
+  });
+  return ports;
+}
+function CrowFootEdge({ sourceX, sourceY, targetX, targetY, selected }) {
+  const color = selected ? "#2563eb" : "#374151";
+  const midX = (sourceX + targetX) / 2;
+  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
+  const dir = targetX >= sourceX ? 1 : -1;
+  const tipX = sourceX + dir * 8;
+  const len = 30;
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: 12, pointerEvents: "stroke" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("path", { d: path, fill: "none", stroke: color, strokeWidth: selected ? 2.5 : 1.5 }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: tipX, y1: sourceY, x2: tipX - dir * len, y2: sourceY - 18, stroke: color, strokeWidth: 1.5 }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: tipX, y1: sourceY, x2: tipX - dir * len, y2: sourceY + 18, stroke: color, strokeWidth: 1.5 })
+  ] });
+}
+
+// src/components/Handle.tsx
+var import_jsx_runtime5 = require("react/jsx-runtime");
 var positionStyles = {
   top: { top: -5, left: "50%", transform: "translateX(-50%)" },
   bottom: { bottom: -5, left: "50%", transform: "translateX(-50%)" },
@@ -1078,7 +1366,7 @@ var positionStyles = {
 };
 function Handle({ type, position, id, isConnectable = true, style, className, onMouseDown }) {
   const connectable = typeof isConnectable === "boolean" ? isConnectable : true;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
     "div",
     {
       "data-handleid": id,
@@ -1114,8 +1402,8 @@ function checkConnectable(isConnectable, node, port, connectedEdges) {
 }
 
 // src/components/nodes/NodeResizer.tsx
-var import_react4 = require("react");
-var import_jsx_runtime4 = require("react/jsx-runtime");
+var import_react6 = require("react");
+var import_jsx_runtime6 = require("react/jsx-runtime");
 var handlePositions = ["top-left", "top-right", "bottom-left", "bottom-right"];
 function NodeResizer({
   minWidth = 10,
@@ -1129,9 +1417,9 @@ function NodeResizer({
   onResizeEnd
 }) {
   if (!isVisible) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "ic-node-resizer", style: { position: "absolute", inset: -4, pointerEvents: "none" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { position: "absolute", inset: 0, border: "1px solid #2563eb", borderRadius: 4, ...lineStyle } }),
-    handlePositions.map((pos) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "ic-node-resizer", style: { position: "absolute", inset: -4, pointerEvents: "none" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: { position: "absolute", inset: 0, border: "1px solid #2563eb", borderRadius: 4, ...lineStyle } }),
+    handlePositions.map((pos) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
       ResizeHandle,
       {
         position: pos,
@@ -1157,7 +1445,7 @@ function ResizeHandle({
   onResize,
   onResizeEnd
 }) {
-  const startRef = (0, import_react4.useRef)(null);
+  const startRef = (0, import_react6.useRef)(null);
   const posStyle = {
     position: "absolute",
     width: 8,
@@ -1171,7 +1459,7 @@ function ResizeHandle({
     cursor: position === "top-left" || position === "bottom-right" ? "nwse-resize" : "nesw-resize",
     ...style
   };
-  const handleMouseDown = (0, import_react4.useCallback)((e) => {
+  const handleMouseDown = (0, import_react6.useCallback)((e) => {
     e.stopPropagation();
     e.preventDefault();
     const parent = e.target.closest(".ic-node");
@@ -1202,7 +1490,7 @@ function ResizeHandle({
     document.addEventListener("mousemove", handleMove);
     document.addEventListener("mouseup", handleUp);
   }, [position, minWidth, maxWidth, minHeight, maxHeight, onResize, onResizeEnd]);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: posStyle, onMouseDown: handleMouseDown });
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: posStyle, onMouseDown: handleMouseDown });
 }
 function NodeResizeControl({
   position = "bottom-right",
@@ -1214,8 +1502,8 @@ function NodeResizeControl({
   children,
   onResize
 }) {
-  const startRef = (0, import_react4.useRef)(null);
-  const handleMouseDown = (0, import_react4.useCallback)((e) => {
+  const startRef = (0, import_react6.useRef)(null);
+  const handleMouseDown = (0, import_react6.useCallback)((e) => {
     e.stopPropagation();
     e.preventDefault();
     const parent = e.target.closest(".ic-node");
@@ -1244,14 +1532,14 @@ function NodeResizeControl({
     ...position.includes("left") ? { left: 0 } : { right: 0 },
     ...style
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "ic-resize-control", style: posStyle, onMouseDown: handleMouseDown, children: children || /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(DefaultResizeIcon, {}) });
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "ic-resize-control", style: posStyle, onMouseDown: handleMouseDown, children: children || /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(DefaultResizeIcon, {}) });
 }
 function DefaultResizeIcon() {
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", style: { display: "block" }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("path", { d: "M11 1L1 11M11 5L5 11M11 9L9 11", stroke: "#6b7280", strokeWidth: "1.5", fill: "none" }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", style: { display: "block" }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: "M11 1L1 11M11 5L5 11M11 9L9 11", stroke: "#6b7280", strokeWidth: "1.5", fill: "none" }) });
 }
 
 // src/components/nodes/NodeToolbar.tsx
-var import_jsx_runtime5 = require("react/jsx-runtime");
+var import_jsx_runtime7 = require("react/jsx-runtime");
 function NodeToolbar({
   isVisible = true,
   position = "top",
@@ -1263,7 +1551,7 @@ function NodeToolbar({
 }) {
   if (!isVisible) return null;
   const posStyle = getPositionStyle(position, offset, align);
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
     "div",
     {
       className: `ic-node-toolbar ${className || ""}`,
@@ -1302,11 +1590,11 @@ function getPositionStyle(position, offset, align) {
 }
 
 // src/components/nodes/RotateHandle.tsx
-var import_react5 = require("react");
-var import_jsx_runtime6 = require("react/jsx-runtime");
+var import_react7 = require("react");
+var import_jsx_runtime8 = require("react/jsx-runtime");
 function RotateHandle({ rotation = 0, onRotate, onRotateEnd, style }) {
-  const centerRef = (0, import_react5.useRef)(null);
-  const handleMouseDown = (0, import_react5.useCallback)((e) => {
+  const centerRef = (0, import_react7.useRef)(null);
+  const handleMouseDown = (0, import_react7.useCallback)((e) => {
     e.stopPropagation();
     e.preventDefault();
     const node = e.target.closest(".ic-node");
@@ -1332,7 +1620,7 @@ function RotateHandle({ rotation = 0, onRotate, onRotateEnd, style }) {
     document.addEventListener("mousemove", handleMove);
     document.addEventListener("mouseup", handleUp);
   }, [onRotate, onRotateEnd]);
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
     "div",
     {
       className: "ic-rotate-handle",
@@ -1351,13 +1639,13 @@ function RotateHandle({ rotation = 0, onRotate, onRotateEnd, style }) {
         ...style
       },
       onMouseDown: handleMouseDown,
-      children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("svg", { width: "10", height: "10", viewBox: "0 0 10 10", style: { display: "block", margin: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: "M5 1a4 4 0 013.5 2M8.5 3l.5-2M8.5 3l-2 .5", stroke: "#2563eb", strokeWidth: "1", fill: "none" }) })
+      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("svg", { width: "10", height: "10", viewBox: "0 0 10 10", style: { display: "block", margin: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("path", { d: "M5 1a4 4 0 013.5 2M8.5 3l.5-2M8.5 3l-2 .5", stroke: "#2563eb", strokeWidth: "1", fill: "none" }) })
     }
   );
 }
 
 // src/components/nodes/ShapeNode.tsx
-var import_jsx_runtime7 = require("react/jsx-runtime");
+var import_jsx_runtime9 = require("react/jsx-runtime");
 var SHAPE_SIZE = 80;
 var shapePaths = {
   rectangle: (w, h) => `M0,0 L${w},0 L${w},${h} L0,${h} Z`,
@@ -1380,8 +1668,8 @@ function ShapeNode({ id, data, selected }) {
   const { type = "rectangle", color = "#6b7280", label } = data;
   const w = SHAPE_SIZE, h = SHAPE_SIZE;
   const pathFn = shapePaths[type] || shapePaths.rectangle;
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { position: "relative", width: w, height: h }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("svg", { width: w, height: h, style: { display: "block" }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { position: "relative", width: w, height: h }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("svg", { width: w, height: h, style: { display: "block" }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
       "path",
       {
         d: pathFn(w, h),
@@ -1391,7 +1679,7 @@ function ShapeNode({ id, data, selected }) {
         opacity: 0.85
       }
     ) }),
-    label && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: {
+    label && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: {
       position: "absolute",
       inset: 0,
       display: "flex",
@@ -1403,17 +1691,17 @@ function ShapeNode({ id, data, selected }) {
       pointerEvents: "none",
       textShadow: "0 1px 2px rgba(0,0,0,0.3)"
     }, children: label }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Handle, { type: "target", position: "top" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Handle, { type: "source", position: "bottom" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Handle, { type: "target", position: "left" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Handle, { type: "source", position: "right" })
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Handle, { type: "target", position: "top" }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Handle, { type: "source", position: "bottom" }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Handle, { type: "target", position: "left" }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Handle, { type: "source", position: "right" })
   ] });
 }
 
 // src/components/nodes/DefaultNode.tsx
-var import_jsx_runtime8 = require("react/jsx-runtime");
+var import_jsx_runtime10 = require("react/jsx-runtime");
 function DefaultNode2({ id, data, selected, onPortMouseDown }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: {
     padding: "8px 16px",
     borderRadius: 6,
     border: `2px solid ${selected ? "#2563eb" : "#e0e0e0"}`,
@@ -1424,7 +1712,7 @@ function DefaultNode2({ id, data, selected, onPortMouseDown }) {
     position: "relative"
   }, children: [
     data.label || id,
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       "div",
       {
         onMouseDown: (e) => onPortMouseDown?.(e, id),
@@ -1442,7 +1730,7 @@ function DefaultNode2({ id, data, selected, onPortMouseDown }) {
         }
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       "div",
       {
         style: {
@@ -1462,7 +1750,7 @@ function DefaultNode2({ id, data, selected, onPortMouseDown }) {
 }
 
 // src/components/edges/BaseEdge.tsx
-var import_jsx_runtime9 = require("react/jsx-runtime");
+var import_jsx_runtime11 = require("react/jsx-runtime");
 function BaseEdge({
   path,
   label,
@@ -1474,9 +1762,9 @@ function BaseEdge({
   interactionWidth = 12,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("g", { onClick, style: { cursor: "pointer" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: interactionWidth, pointerEvents: "stroke" }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("g", { onClick, style: { cursor: "pointer" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: interactionWidth, pointerEvents: "stroke" }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
       "path",
       {
         d: path,
@@ -1486,15 +1774,15 @@ function BaseEdge({
         strokeDasharray: animated ? "5 5" : void 0,
         pointerEvents: "none",
         style,
-        children: animated && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("animate", { attributeName: "stroke-dashoffset", from: "10", to: "0", dur: "0.5s", repeatCount: "indefinite" })
+        children: animated && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("animate", { attributeName: "stroke-dashoffset", from: "10", to: "0", dur: "0.5s", repeatCount: "indefinite" })
       }
     ),
-    label && labelX !== void 0 && labelY !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("text", { x: labelX, y: labelY - 6, textAnchor: "middle", fontSize: 10, fill: "#6b7280", pointerEvents: "none", children: label })
+    label && labelX !== void 0 && labelY !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("text", { x: labelX, y: labelY - 6, textAnchor: "middle", fontSize: 10, fill: "#6b7280", pointerEvents: "none", children: label })
   ] });
 }
 
 // src/components/edges/BezierEdge.tsx
-var import_jsx_runtime10 = require("react/jsx-runtime");
+var import_jsx_runtime12 = require("react/jsx-runtime");
 function BezierEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, animated, label, style }) {
   const path = getSmartBezierPath(
     { x: sourceX, y: sourceY },
@@ -1504,31 +1792,31 @@ function BezierEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, target
   );
   const labelX = (sourceX + targetX) / 2;
   const labelY = (sourceY + targetY) / 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
 }
 
 // src/components/edges/StraightEdge.tsx
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_jsx_runtime13 = require("react/jsx-runtime");
 function StraightEdge({ sourceX, sourceY, targetX, targetY, selected, animated, label, style }) {
   const path = getStraightPath({ x: sourceX, y: sourceY }, { x: targetX, y: targetY });
   const labelX = (sourceX + targetX) / 2;
   const labelY = (sourceY + targetY) / 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
 }
 
 // src/components/edges/StepEdge.tsx
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_jsx_runtime14 = require("react/jsx-runtime");
 function StepEdge({ sourceX, sourceY, targetX, targetY, selected, animated, label, style }) {
   const path = getStepPath({ x: sourceX, y: sourceY }, { x: targetX, y: targetY });
   const labelX = (sourceX + targetX) / 2;
   const labelY = (sourceY + targetY) / 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
 }
 function SmoothStepEdge({ sourceX, sourceY, targetX, targetY, selected, animated, label, style }) {
   const path = getSmoothStepPath({ x: sourceX, y: sourceY }, { x: targetX, y: targetY });
   const labelX = (sourceX + targetX) / 2;
   const labelY = (sourceY + targetY) / 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
 }
 function getSmoothStepPath(source, target) {
   const midX = (source.x + target.x) / 2;
@@ -1548,7 +1836,7 @@ function getSmoothStepPath(source, target) {
 }
 
 // src/components/edges/AnimatedEdge.tsx
-var import_jsx_runtime13 = require("react/jsx-runtime");
+var import_jsx_runtime15 = require("react/jsx-runtime");
 function AnimatedEdge({
   sourceX,
   sourceY,
@@ -1570,8 +1858,8 @@ function AnimatedEdge({
     sourcePosition,
     targetPosition
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("g", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("g", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       "path",
       {
         d: path,
@@ -1582,8 +1870,8 @@ function AnimatedEdge({
         style
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("circle", { r: radius, fill: markerColor, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("animateMotion", { dur: `${duration}s`, repeatCount: "indefinite", path }) }),
-    label && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("text", { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 - 6, textAnchor: "middle", fontSize: 10, fill: "#6b7280", children: label })
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("circle", { r: radius, fill: markerColor, children: /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("animateMotion", { dur: `${duration}s`, repeatCount: "indefinite", path }) }),
+    label && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("text", { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 - 6, textAnchor: "middle", fontSize: 10, fill: "#6b7280", children: label })
   ] });
 }
 
@@ -1637,7 +1925,7 @@ function nodesToObstacles(nodes, excludeIds = []) {
 }
 
 // src/components/edges/OrthogonalEdge.tsx
-var import_jsx_runtime14 = require("react/jsx-runtime");
+var import_jsx_runtime16 = require("react/jsx-runtime");
 function OrthogonalEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, animated, label, style }) {
   const path = getOrthogonalPath(
     { x: sourceX, y: sourceY },
@@ -1647,16 +1935,16 @@ function OrthogonalEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, ta
   );
   const labelX = (sourceX + targetX) / 2;
   const labelY = (sourceY + targetY) / 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(BaseEdge, { path, selected, animated, label, labelX, labelY, style });
 }
 
 // src/components/edges/EdgeLabelRenderer.tsx
-var import_react6 = require("react");
+var import_react8 = require("react");
 var import_react_dom = require("react-dom");
 var CONTAINER_ID = "ic-edge-label-renderer";
 function EdgeLabelRenderer({ children }) {
-  const [container, setContainer] = (0, import_react6.useState)(null);
-  (0, import_react6.useEffect)(() => {
+  const [container, setContainer] = (0, import_react8.useState)(null);
+  (0, import_react8.useEffect)(() => {
     let el = document.getElementById(CONTAINER_ID);
     if (!el) {
       el = document.createElement("div");
@@ -1675,67 +1963,17 @@ function EdgeLabelRenderer({ children }) {
 }
 
 // src/hooks/useCanvas.ts
-var import_react7 = require("react");
-
-// src/utils/changes.ts
-function applyNodeChanges(changes, nodes) {
-  let result = [...nodes];
-  for (const change of changes) {
-    switch (change.type) {
-      case "position":
-        result = result.map((n) => n.id === change.id ? { ...n, position: change.position } : n);
-        break;
-      case "select":
-        result = result.map((n) => n.id === change.id ? { ...n, selected: change.selected } : n);
-        break;
-      case "remove":
-        result = result.filter((n) => n.id !== change.id);
-        break;
-      case "add":
-        result.push(change.node);
-        break;
-      case "data":
-        result = result.map((n) => n.id === change.id ? { ...n, data: { ...n.data, ...change.data } } : n);
-        break;
-      case "dimensions":
-        result = result.map((n) => n.id === change.id ? { ...n, width: change.width, height: change.height } : n);
-        break;
-      case "rotation":
-        result = result.map((n) => n.id === change.id ? { ...n, rotation: change.rotation } : n);
-        break;
-    }
-  }
-  return result;
-}
-function applyEdgeChanges(changes, edges) {
-  let result = [...edges];
-  for (const change of changes) {
-    switch (change.type) {
-      case "select":
-        result = result.map((e) => e.id === change.id ? { ...e, selected: change.selected } : e);
-        break;
-      case "remove":
-        result = result.filter((e) => e.id !== change.id);
-        break;
-      case "add":
-        result.push(change.edge);
-        break;
-    }
-  }
-  return result;
-}
-
-// src/hooks/useCanvas.ts
+var import_react9 = require("react");
 function useCanvas(options = {}) {
-  const [nodes, setNodes] = (0, import_react7.useState)(options.initialNodes || []);
-  const [edges, setEdges] = (0, import_react7.useState)(options.initialEdges || []);
-  const onNodesChange = (0, import_react7.useCallback)((changes) => {
+  const [nodes, setNodes] = (0, import_react9.useState)(options.initialNodes || []);
+  const [edges, setEdges] = (0, import_react9.useState)(options.initialEdges || []);
+  const onNodesChange = (0, import_react9.useCallback)((changes) => {
     setNodes((prev) => applyNodeChanges(changes, prev));
   }, []);
-  const onEdgesChange = (0, import_react7.useCallback)((changes) => {
+  const onEdgesChange = (0, import_react9.useCallback)((changes) => {
     setEdges((prev) => applyEdgeChanges(changes, prev));
   }, []);
-  const onConnect = (0, import_react7.useCallback)((connection) => {
+  const onConnect = (0, import_react9.useCallback)((connection) => {
     const newEdge = {
       id: `e-${Date.now()}`,
       source: connection.source,
@@ -1745,106 +1983,30 @@ function useCanvas(options = {}) {
     };
     setEdges((prev) => [...prev, newEdge]);
   }, []);
-  const addNode = (0, import_react7.useCallback)((node) => {
+  const addNode = (0, import_react9.useCallback)((node) => {
     setNodes((prev) => [...prev, node]);
   }, []);
-  const removeNode = (0, import_react7.useCallback)((id) => {
+  const removeNode = (0, import_react9.useCallback)((id) => {
     setNodes((prev) => prev.filter((n) => n.id !== id));
     setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
   }, []);
   return { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, onConnect, addNode, removeNode };
 }
 
-// src/hooks/useCanvasHistory.ts
-var import_react8 = require("react");
-function useCanvasHistory(options = {}) {
-  const { initialNodes = [], initialEdges = [], maxHistory = 50, onStateChange } = options;
-  const [nodes, setNodes] = (0, import_react8.useState)(initialNodes);
-  const [edges, setEdges] = (0, import_react8.useState)(initialEdges);
-  const past = (0, import_react8.useRef)([]);
-  const future = (0, import_react8.useRef)([]);
-  const skipRecord = (0, import_react8.useRef)(false);
-  const record = (0, import_react8.useCallback)((prevNodes, prevEdges) => {
-    if (skipRecord.current) {
-      skipRecord.current = false;
-      return;
-    }
-    past.current = [...past.current.slice(-(maxHistory - 1)), { nodes: prevNodes, edges: prevEdges }];
-    future.current = [];
-  }, [maxHistory]);
-  const onNodesChange = (0, import_react8.useCallback)((changes) => {
-    setNodes((prev) => {
-      const dominated = changes.some((c) => c.type === "position" || c.type === "remove" || c.type === "add");
-      if (dominated) record(prev, edges);
-      const next = applyNodeChanges(changes, prev);
-      if (dominated && onStateChange) onStateChange({ nodes: next, edges });
-      return next;
-    });
-  }, [edges, record, onStateChange]);
-  const onEdgesChange = (0, import_react8.useCallback)((changes) => {
-    setEdges((prev) => {
-      const dominated = changes.some((c) => c.type === "remove" || c.type === "add");
-      if (dominated) record(nodes, prev);
-      const next = applyEdgeChanges(changes, prev);
-      if (dominated && onStateChange) onStateChange({ nodes, edges: next });
-      return next;
-    });
-  }, [nodes, record, onStateChange]);
-  const onConnect = (0, import_react8.useCallback)((connection) => {
-    setEdges((prev) => {
-      record(nodes, prev);
-      const next = [...prev, { id: `e-${Date.now()}`, source: connection.source, sourcePort: connection.sourcePort, target: connection.target, targetPort: connection.targetPort }];
-      if (onStateChange) onStateChange({ nodes, edges: next });
-      return next;
-    });
-  }, [nodes, record, onStateChange]);
-  const undo = (0, import_react8.useCallback)(() => {
-    const prev = past.current.pop();
-    if (!prev) return;
-    future.current.push({ nodes, edges });
-    skipRecord.current = true;
-    setNodes(prev.nodes);
-    setEdges(prev.edges);
-    if (onStateChange) onStateChange(prev);
-  }, [nodes, edges, onStateChange]);
-  const redo = (0, import_react8.useCallback)(() => {
-    const next = future.current.pop();
-    if (!next) return;
-    past.current.push({ nodes, edges });
-    skipRecord.current = true;
-    setNodes(next.nodes);
-    setEdges(next.edges);
-    if (onStateChange) onStateChange(next);
-  }, [nodes, edges, onStateChange]);
-  return {
-    nodes,
-    edges,
-    setNodes,
-    setEdges,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-    undo,
-    redo,
-    canUndo: past.current.length > 0,
-    canRedo: future.current.length > 0
-  };
-}
-
 // src/hooks/useInteractions.ts
-var import_react9 = require("react");
+var import_react10 = require("react");
 function useInteractions({ nodes, edges, setNodes, setEdges }) {
-  const connectStartRef = (0, import_react9.useRef)(null);
-  const onConnectStart = (0, import_react9.useCallback)((_event, params) => {
+  const connectStartRef = (0, import_react10.useRef)(null);
+  const onConnectStart = (0, import_react10.useCallback)((_event, params) => {
     connectStartRef.current = params;
   }, []);
-  const onConnectEnd = (0, import_react9.useCallback)((event) => {
+  const onConnectEnd = (0, import_react10.useCallback)((event) => {
     if (!connectStartRef.current) return null;
     const startParams = connectStartRef.current;
     connectStartRef.current = null;
     return startParams;
   }, []);
-  const onNodesDelete = (0, import_react9.useCallback)((deletedNodes) => {
+  const onNodesDelete = (0, import_react10.useCallback)((deletedNodes) => {
     for (const deleted of deletedNodes) {
       const incomers = getIncomers(deleted, nodes, edges);
       const outgoers = getOutgoers(deleted, nodes, edges);
@@ -1866,11 +2028,11 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       }
     }
   }, [nodes, edges, setEdges]);
-  const getProximityConnection = (0, import_react9.useCallback)((nodeId, position, threshold = 100) => {
+  const getProximityConnection = (0, import_react10.useCallback)((nodeId, position, threshold = 100) => {
     const otherNodes = nodes.filter((n) => n.id !== nodeId);
     return getClosestNode(position, otherNodes, threshold);
   }, [nodes]);
-  const connectToProximity = (0, import_react9.useCallback)((sourceId, targetId) => {
+  const connectToProximity = (0, import_react10.useCallback)((sourceId, targetId) => {
     const exists = edges.some(
       (e) => e.source === sourceId && e.target === targetId || e.source === targetId && e.target === sourceId
     );
@@ -1881,7 +2043,7 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       target: targetId
     }]);
   }, [edges, setEdges]);
-  const insertNodeOnEdge = (0, import_react9.useCallback)((nodeId, position, threshold = 20) => {
+  const insertNodeOnEdge = (0, import_react10.useCallback)((nodeId, position, threshold = 20) => {
     const edge = getEdgeAtPoint(position, edges, nodes, threshold, nodeId);
     if (!edge) return false;
     setEdges((prev) => {
@@ -1906,26 +2068,26 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
 }
 
 // src/hooks/useEasyConnect.ts
-var import_react10 = require("react");
+var import_react11 = require("react");
 function useEasyConnect({ onConnect }) {
-  const connectingFrom = (0, import_react10.useRef)(null);
-  const onNodeMouseDown = (0, import_react10.useCallback)((e, node) => {
+  const connectingFrom = (0, import_react11.useRef)(null);
+  const onNodeMouseDown = (0, import_react11.useCallback)((e, node) => {
     const target = e.target;
     if (target.closest(".drag-handle") || target.closest(".nodrag")) return;
     connectingFrom.current = node.id;
   }, []);
-  const onNodeMouseUp = (0, import_react10.useCallback)((_e, node) => {
+  const onNodeMouseUp = (0, import_react11.useCallback)((_e, node) => {
     if (connectingFrom.current && connectingFrom.current !== node.id) {
       onConnect?.({ source: connectingFrom.current, target: node.id });
     }
     connectingFrom.current = null;
   }, [onConnect]);
-  const isConnecting = (0, import_react10.useCallback)(() => connectingFrom.current !== null, []);
+  const isConnecting = (0, import_react11.useCallback)(() => connectingFrom.current !== null, []);
   return { onNodeMouseDown, onNodeMouseUp, isConnecting };
 }
 
 // src/hooks/useAutoLayout.ts
-var import_react11 = require("react");
+var import_react12 = require("react");
 function useAutoLayout(options = {}) {
   const {
     direction = "TB",
@@ -1934,7 +2096,7 @@ function useAutoLayout(options = {}) {
     horizontalSpacing = 60,
     verticalSpacing = 80
   } = options;
-  const getLayoutedNodes = (0, import_react11.useCallback)((nodes, edges) => {
+  const getLayoutedNodes = (0, import_react12.useCallback)((nodes, edges) => {
     if (nodes.length === 0) return [];
     const children = /* @__PURE__ */ new Map();
     const parents = /* @__PURE__ */ new Map();
@@ -2003,6 +2165,8 @@ function useAutoLayout(options = {}) {
   DefaultConnectionLine,
   DefaultNode,
   EdgeLabelRenderer,
+  EntityNode,
+  ErdCanvas,
   Handle,
   MiniMapInner,
   NodeResizeControl,
