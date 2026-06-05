@@ -57,5 +57,5 @@ export type {
   CanvasProps,
 } from './types';
 
-export type { ErdEntity, ErdRelation, ErdCanvasProps } from './components/ErdCanvas';
+export type { ErdEntity, ErdRelation, ErdCanvasProps, EntityColumn as ErdEntityColumn } from './components/ErdCanvas';
 export type { EntityColumn, EntityNodeData } from './components/nodes/EntityNode';

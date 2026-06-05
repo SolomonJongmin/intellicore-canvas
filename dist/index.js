@@ -27,7 +27,7 @@ __export(index_exports, {
   DefaultConnectionLine: () => DefaultConnectionLine,
   DefaultNode: () => DefaultNode2,
   EdgeLabelRenderer: () => EdgeLabelRenderer,
-  EntityNode: () => EntityNode,
+  EntityNode: () => EntityNode2,
   ErdCanvas: () => ErdCanvas,
   Handle: () => Handle,
   MiniMapInner: () => MiniMapInner,
@@ -1199,17 +1199,166 @@ function useCanvasHistory(options = {}) {
   };
 }
 
-// src/components/nodes/EntityNode.tsx
+// src/components/ErdCanvas.tsx
 var import_jsx_runtime3 = require("react/jsx-runtime");
+var HEADER_HEIGHT = 33;
+var ROW_HEIGHT = 22;
+function ErdCanvas({
+  entities,
+  relations,
+  selectedEntityId,
+  onEntitySelect,
+  onEntityMove,
+  onDrop,
+  fitView = true,
+  showMiniMap = true,
+  style
+}) {
+  const initialNodes = (0, import_react5.useMemo)(
+    () => entities.map((ent) => ({
+      id: ent.id,
+      type: "entity",
+      position: { x: ent.x, y: ent.y },
+      data: { name: ent.name, columns: ent.columns },
+      width: 170,
+      height: HEADER_HEIGHT + ent.columns.length * ROW_HEIGHT
+    })),
+    [entities]
+  );
+  const initialEdges = (0, import_react5.useMemo)(
+    () => relations.map((rel, i) => ({
+      id: rel.id || `rel-${i}`,
+      source: rel.sourceEntityId,
+      target: rel.targetEntityId,
+      type: "crowfoot",
+      data: { sourceColIndex: rel.sourceColumnIndex }
+    })),
+    [relations]
+  );
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, undo, redo, canUndo, canRedo } = useCanvasHistory({ initialNodes, initialEdges });
+  const prevPositions = (0, import_react5.useRef)(/* @__PURE__ */ new Map());
+  (0, import_react5.useEffect)(() => {
+    if (!onEntityMove) return;
+    for (const node of nodes) {
+      const prev = prevPositions.current.get(node.id);
+      if (prev && (Math.abs(prev.x - node.position.x) > 1 || Math.abs(prev.y - node.position.y) > 1)) {
+        onEntityMove(node.id, node.position.x, node.position.y);
+      }
+      prevPositions.current.set(node.id, { ...node.position });
+    }
+  }, [nodes, onEntityMove]);
+  (0, import_react5.useEffect)(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
+  const containerRef = (0, import_react5.useRef)(null);
+  const [size, setSize] = (0, import_react5.useState)({ w: 800, h: 600 });
+  (0, import_react5.useEffect)(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const handleDrop = (e, position) => {
+    if (onDrop) {
+      onDrop(e, position);
+    } else {
+      const id = `entity-${Date.now()}`;
+      onNodesChange([{ type: "add", node: { id, type: "entity", position, data: { name: "NewEntity", columns: [{ name: "Id", pk: true }] }, width: 160 } }]);
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { ref: containerRef, style: { width: "100%", height: "100%", position: "relative", ...style }, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    Canvas,
+    {
+      nodes,
+      edges,
+      onNodesChange,
+      onEdgesChange,
+      onConnect,
+      onDrop: handleDrop,
+      onDragOver: (e) => e.preventDefault(),
+      nodeTypes: { entity: EntityNode },
+      edgeTypes: { crowfoot: CrowFootEdge },
+      defaultEdgeType: "crowfoot",
+      fitView,
+      style: { background: "#fff" },
+      children: showMiniMap && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(MiniMapInner, { nodes, edges, viewport: { x: 0, y: 0, zoom: 1 }, containerWidth: size.w, containerHeight: size.h })
+    }
+  ) });
+}
+function CrowFootEdge({ sourceX, sourceY, targetX, targetY, selected }) {
+  const color = selected ? "#2563eb" : "#374151";
+  const midX = (sourceX + targetX) / 2;
+  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
+  const len = 30;
+  const dir = targetX >= sourceX ? 1 : -1;
+  const tipX = sourceX + dir * 8;
+  const a1X = tipX - dir * len;
+  const a1Y = sourceY - 18;
+  const a2X = tipX - dir * len;
+  const a2Y = sourceY + 18;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("g", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: 12, pointerEvents: "stroke" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: path, fill: "none", stroke: color, strokeWidth: selected ? 2.5 : 1.5 }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: tipX, y1: sourceY, x2: a1X, y2: a1Y, stroke: color, strokeWidth: 1.5 }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("line", { x1: tipX, y1: sourceY, x2: a2X, y2: a2Y, stroke: color, strokeWidth: 1.5 })
+  ] });
+}
+function EntityNode({ id, data, selected }) {
+  const columns = data.columns || [];
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: {
+    minWidth: 140,
+    border: `1.5px solid ${selected ? "#1a73e8" : "#d1d5db"}`,
+    borderRadius: 4,
+    background: "#fff",
+    boxShadow: selected ? "0 0 0 2px rgba(26,115,232,0.2)" : "0 1px 4px rgba(0,0,0,0.08)",
+    fontSize: 13,
+    color: "#1f2937",
+    overflow: "hidden"
+  }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, height: HEADER_HEIGHT, boxSizing: "border-box", borderBottom: "1px solid #e5e7eb" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EntityIcon, {}),
+      data.name || id
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { padding: "3px 10px", height: ROW_HEIGHT, boxSizing: "border-box", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ColumnIcon, { fk: col.fk }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { fontWeight: col.pk ? 600 : 400, color: col.fk ? "#c0392b" : "#374151" }, children: col.name })
+    ] }, i)) })
+  ] });
+}
 function EntityIcon() {
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { width: "14", height: "14", viewBox: "0 0 14 14", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x: x + 1, y: y + 1, width: "3", height: "3", rx: "0.5", fill: "#1a73e8" }, `${x}-${y}`))) });
 }
 function ColumnIcon({ fk }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: fk ? "#8b6914" : "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
+  if (fk) {
+    const colors = ["#e74c3c", "#27ae60", "#2980b9", "#e74c3c", "#27ae60", "#2980b9", "#e74c3c", "#27ae60", "#2980b9"];
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y, yi) => [0, 4, 8].map((x, xi) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: colors[yi * 3 + xi], opacity: 0.8 }, `${x}-${y}`))) });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
 }
-function EntityNode({ id, data, selected }) {
+
+// src/components/nodes/EntityNode.tsx
+var import_jsx_runtime4 = require("react/jsx-runtime");
+function EntityIcon2() {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("svg", { width: "14", height: "14", viewBox: "0 0 14 14", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("rect", { x: x + 1, y: y + 1, width: "3", height: "3", rx: "0.5", fill: "#1a73e8" }, `${x}-${y}`))) });
+}
+function ColumnIcon2({ fk }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: fk ? "#8b6914" : "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
+}
+function EntityNode2({ id, data, selected }) {
   const columns = data.columns || [];
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
     "div",
     {
       onContextMenu: data.onContextMenu,
@@ -1223,137 +1372,17 @@ function EntityNode({ id, data, selected }) {
         overflow: "hidden"
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #e5e7eb" }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EntityIcon, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #e5e7eb" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EntityIcon2, {}),
           data.name || id
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { padding: "3px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "#374151" }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ColumnIcon, { fk: col.fk }),
-          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { fontWeight: col.pk ? 600 : 400 }, children: col.name })
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { padding: "3px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "#374151" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ColumnIcon2, { fk: col.fk }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { style: { fontWeight: col.pk ? 600 : 400 }, children: col.name })
         ] }, i)) })
       ]
     }
   );
-}
-
-// src/components/ErdCanvas.tsx
-var import_jsx_runtime4 = require("react/jsx-runtime");
-var HEADER_HEIGHT = 33;
-var ROW_HEIGHT = 22;
-function ErdCanvas({
-  entities,
-  relations,
-  selectedEntityId,
-  onEntitySelect,
-  onEntityMove,
-  onEntityContextMenu,
-  onCanvasContextMenu,
-  onDrop,
-  fitView = true,
-  style
-}) {
-  const initialNodes = (0, import_react5.useMemo)(
-    () => entities.map((ent) => ({
-      id: ent.id,
-      type: "entity",
-      position: { x: ent.x, y: ent.y },
-      data: {
-        name: ent.name,
-        columns: ent.columns,
-        onContextMenu: onEntityContextMenu ? (e) => onEntityContextMenu(ent.id, e) : void 0
-      },
-      width: 170,
-      height: HEADER_HEIGHT + ent.columns.length * ROW_HEIGHT + 8,
-      ports: buildPorts(ent.columns)
-    })),
-    [entities, onEntityContextMenu]
-  );
-  const initialEdges = (0, import_react5.useMemo)(
-    () => relations.map((rel, i) => ({
-      id: rel.id || `rel-${i}`,
-      source: rel.sourceEntityId,
-      sourcePort: `fk-${rel.sourceColumnIndex}`,
-      target: rel.targetEntityId,
-      targetPort: "target",
-      type: "crowfoot"
-    })),
-    [relations]
-  );
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useCanvasHistory({ initialNodes, initialEdges });
-  const prevPositions = (0, import_react5.useRef)(/* @__PURE__ */ new Map());
-  (0, import_react5.useEffect)(() => {
-    if (!onEntityMove) return;
-    for (const node of nodes) {
-      const prev = prevPositions.current.get(node.id);
-      if (prev && (Math.abs(prev.x - node.position.x) > 1 || Math.abs(prev.y - node.position.y) > 1)) {
-        onEntityMove(node.id, node.position.x, node.position.y);
-      }
-      prevPositions.current.set(node.id, { ...node.position });
-    }
-  }, [nodes, onEntityMove]);
-  const containerRef = (0, import_react5.useRef)(null);
-  const handleDrop = (0, import_react5.useCallback)((e, position) => {
-    onDrop?.(e, position);
-  }, [onDrop]);
-  const handleContextMenu = (0, import_react5.useCallback)((e) => {
-    if (onCanvasContextMenu && !e.target.closest("[data-entity-node]")) {
-      e.preventDefault();
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        onCanvasContextMenu(e, { x: e.clientX - rect.left, y: e.clientY - rect.top });
-      }
-    }
-  }, [onCanvasContextMenu]);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-    "div",
-    {
-      ref: containerRef,
-      style: { width: "100%", height: "100%", position: "relative", ...style },
-      onContextMenu: handleContextMenu,
-      children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-        Canvas,
-        {
-          nodes,
-          edges,
-          onNodesChange,
-          onEdgesChange,
-          onConnect,
-          onDrop: handleDrop,
-          onDragOver: (e) => e.preventDefault(),
-          nodeTypes: { entity: EntityNode },
-          edgeTypes: { crowfoot: CrowFootEdge },
-          defaultEdgeType: "crowfoot",
-          fitView,
-          style: { background: "#fff" }
-        }
-      )
-    }
-  );
-}
-function buildPorts(columns) {
-  const ports = [
-    { id: "target", type: "input", position: "left", offset: HEADER_HEIGHT / 2 }
-  ];
-  columns.forEach((col, i) => {
-    if (col.fk) {
-      ports.push({ id: `fk-${i}`, type: "output", position: "right", offset: HEADER_HEIGHT + ROW_HEIGHT * i + ROW_HEIGHT / 2 });
-    }
-  });
-  return ports;
-}
-function CrowFootEdge({ sourceX, sourceY, targetX, targetY, selected }) {
-  const color = selected ? "#2563eb" : "#374151";
-  const midX = (sourceX + targetX) / 2;
-  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
-  const dir = targetX >= sourceX ? 1 : -1;
-  const tipX = sourceX + dir * 8;
-  const len = 30;
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: 12, pointerEvents: "stroke" }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("path", { d: path, fill: "none", stroke: color, strokeWidth: selected ? 2.5 : 1.5 }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: tipX, y1: sourceY, x2: tipX - dir * len, y2: sourceY - 18, stroke: color, strokeWidth: 1.5 }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("line", { x1: tipX, y1: sourceY, x2: tipX - dir * len, y2: sourceY + 18, stroke: color, strokeWidth: 1.5 })
-  ] });
 }
 
 // src/components/Handle.tsx

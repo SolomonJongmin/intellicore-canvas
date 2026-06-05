@@ -998,7 +998,7 @@ function MiniMapInner({ nodes, edges, viewport, containerWidth, containerHeight,
 }
 
 // src/components/ErdCanvas.tsx
-import { useRef as useRef5, useEffect as useEffect3, useMemo, useCallback as useCallback5 } from "react";
+import { useRef as useRef5, useEffect as useEffect3, useState as useState4, useMemo } from "react";
 
 // src/hooks/useCanvasHistory.ts
 import { useState as useState3, useCallback as useCallback4, useRef as useRef4 } from "react";
@@ -1126,17 +1126,166 @@ function useCanvasHistory(options = {}) {
   };
 }
 
-// src/components/nodes/EntityNode.tsx
+// src/components/ErdCanvas.tsx
 import { jsx as jsx3, jsxs as jsxs2 } from "react/jsx-runtime";
+var HEADER_HEIGHT = 33;
+var ROW_HEIGHT = 22;
+function ErdCanvas({
+  entities,
+  relations,
+  selectedEntityId,
+  onEntitySelect,
+  onEntityMove,
+  onDrop,
+  fitView = true,
+  showMiniMap = true,
+  style
+}) {
+  const initialNodes = useMemo(
+    () => entities.map((ent) => ({
+      id: ent.id,
+      type: "entity",
+      position: { x: ent.x, y: ent.y },
+      data: { name: ent.name, columns: ent.columns },
+      width: 170,
+      height: HEADER_HEIGHT + ent.columns.length * ROW_HEIGHT
+    })),
+    [entities]
+  );
+  const initialEdges = useMemo(
+    () => relations.map((rel, i) => ({
+      id: rel.id || `rel-${i}`,
+      source: rel.sourceEntityId,
+      target: rel.targetEntityId,
+      type: "crowfoot",
+      data: { sourceColIndex: rel.sourceColumnIndex }
+    })),
+    [relations]
+  );
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, undo, redo, canUndo, canRedo } = useCanvasHistory({ initialNodes, initialEdges });
+  const prevPositions = useRef5(/* @__PURE__ */ new Map());
+  useEffect3(() => {
+    if (!onEntityMove) return;
+    for (const node of nodes) {
+      const prev = prevPositions.current.get(node.id);
+      if (prev && (Math.abs(prev.x - node.position.x) > 1 || Math.abs(prev.y - node.position.y) > 1)) {
+        onEntityMove(node.id, node.position.x, node.position.y);
+      }
+      prevPositions.current.set(node.id, { ...node.position });
+    }
+  }, [nodes, onEntityMove]);
+  useEffect3(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
+  const containerRef = useRef5(null);
+  const [size, setSize] = useState4({ w: 800, h: 600 });
+  useEffect3(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const handleDrop = (e, position) => {
+    if (onDrop) {
+      onDrop(e, position);
+    } else {
+      const id = `entity-${Date.now()}`;
+      onNodesChange([{ type: "add", node: { id, type: "entity", position, data: { name: "NewEntity", columns: [{ name: "Id", pk: true }] }, width: 160 } }]);
+    }
+  };
+  return /* @__PURE__ */ jsx3("div", { ref: containerRef, style: { width: "100%", height: "100%", position: "relative", ...style }, children: /* @__PURE__ */ jsx3(
+    Canvas,
+    {
+      nodes,
+      edges,
+      onNodesChange,
+      onEdgesChange,
+      onConnect,
+      onDrop: handleDrop,
+      onDragOver: (e) => e.preventDefault(),
+      nodeTypes: { entity: EntityNode },
+      edgeTypes: { crowfoot: CrowFootEdge },
+      defaultEdgeType: "crowfoot",
+      fitView,
+      style: { background: "#fff" },
+      children: showMiniMap && /* @__PURE__ */ jsx3(MiniMapInner, { nodes, edges, viewport: { x: 0, y: 0, zoom: 1 }, containerWidth: size.w, containerHeight: size.h })
+    }
+  ) });
+}
+function CrowFootEdge({ sourceX, sourceY, targetX, targetY, selected }) {
+  const color = selected ? "#2563eb" : "#374151";
+  const midX = (sourceX + targetX) / 2;
+  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
+  const len = 30;
+  const dir = targetX >= sourceX ? 1 : -1;
+  const tipX = sourceX + dir * 8;
+  const a1X = tipX - dir * len;
+  const a1Y = sourceY - 18;
+  const a2X = tipX - dir * len;
+  const a2Y = sourceY + 18;
+  return /* @__PURE__ */ jsxs2("g", { children: [
+    /* @__PURE__ */ jsx3("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: 12, pointerEvents: "stroke" }),
+    /* @__PURE__ */ jsx3("path", { d: path, fill: "none", stroke: color, strokeWidth: selected ? 2.5 : 1.5 }),
+    /* @__PURE__ */ jsx3("line", { x1: tipX, y1: sourceY, x2: a1X, y2: a1Y, stroke: color, strokeWidth: 1.5 }),
+    /* @__PURE__ */ jsx3("line", { x1: tipX, y1: sourceY, x2: a2X, y2: a2Y, stroke: color, strokeWidth: 1.5 })
+  ] });
+}
+function EntityNode({ id, data, selected }) {
+  const columns = data.columns || [];
+  return /* @__PURE__ */ jsxs2("div", { style: {
+    minWidth: 140,
+    border: `1.5px solid ${selected ? "#1a73e8" : "#d1d5db"}`,
+    borderRadius: 4,
+    background: "#fff",
+    boxShadow: selected ? "0 0 0 2px rgba(26,115,232,0.2)" : "0 1px 4px rgba(0,0,0,0.08)",
+    fontSize: 13,
+    color: "#1f2937",
+    overflow: "hidden"
+  }, children: [
+    /* @__PURE__ */ jsxs2("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, height: HEADER_HEIGHT, boxSizing: "border-box", borderBottom: "1px solid #e5e7eb" }, children: [
+      /* @__PURE__ */ jsx3(EntityIcon, {}),
+      data.name || id
+    ] }),
+    /* @__PURE__ */ jsx3("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ jsxs2("div", { style: { padding: "3px 10px", height: ROW_HEIGHT, boxSizing: "border-box", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }, children: [
+      /* @__PURE__ */ jsx3(ColumnIcon, { fk: col.fk }),
+      /* @__PURE__ */ jsx3("span", { style: { fontWeight: col.pk ? 600 : 400, color: col.fk ? "#c0392b" : "#374151" }, children: col.name })
+    ] }, i)) })
+  ] });
+}
 function EntityIcon() {
   return /* @__PURE__ */ jsx3("svg", { width: "14", height: "14", viewBox: "0 0 14 14", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ jsx3("rect", { x: x + 1, y: y + 1, width: "3", height: "3", rx: "0.5", fill: "#1a73e8" }, `${x}-${y}`))) });
 }
 function ColumnIcon({ fk }) {
-  return /* @__PURE__ */ jsx3("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ jsx3("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: fk ? "#8b6914" : "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
+  if (fk) {
+    const colors = ["#e74c3c", "#27ae60", "#2980b9", "#e74c3c", "#27ae60", "#2980b9", "#e74c3c", "#27ae60", "#2980b9"];
+    return /* @__PURE__ */ jsx3("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y, yi) => [0, 4, 8].map((x, xi) => /* @__PURE__ */ jsx3("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: colors[yi * 3 + xi], opacity: 0.8 }, `${x}-${y}`))) });
+  }
+  return /* @__PURE__ */ jsx3("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ jsx3("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
 }
-function EntityNode({ id, data, selected }) {
+
+// src/components/nodes/EntityNode.tsx
+import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
+function EntityIcon2() {
+  return /* @__PURE__ */ jsx4("svg", { width: "14", height: "14", viewBox: "0 0 14 14", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ jsx4("rect", { x: x + 1, y: y + 1, width: "3", height: "3", rx: "0.5", fill: "#1a73e8" }, `${x}-${y}`))) });
+}
+function ColumnIcon2({ fk }) {
+  return /* @__PURE__ */ jsx4("svg", { width: "12", height: "12", viewBox: "0 0 12 12", children: [0, 4, 8].map((y) => [0, 4, 8].map((x) => /* @__PURE__ */ jsx4("rect", { x, y, width: "3", height: "3", rx: "0.5", fill: fk ? "#8b6914" : "#1a73e8", opacity: 0.7 }, `${x}-${y}`))) });
+}
+function EntityNode2({ id, data, selected }) {
   const columns = data.columns || [];
-  return /* @__PURE__ */ jsxs2(
+  return /* @__PURE__ */ jsxs3(
     "div",
     {
       onContextMenu: data.onContextMenu,
@@ -1150,137 +1299,17 @@ function EntityNode({ id, data, selected }) {
         overflow: "hidden"
       },
       children: [
-        /* @__PURE__ */ jsxs2("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #e5e7eb" }, children: [
-          /* @__PURE__ */ jsx3(EntityIcon, {}),
+        /* @__PURE__ */ jsxs3("div", { style: { padding: "8px 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #e5e7eb" }, children: [
+          /* @__PURE__ */ jsx4(EntityIcon2, {}),
           data.name || id
         ] }),
-        /* @__PURE__ */ jsx3("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ jsxs2("div", { style: { padding: "3px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "#374151" }, children: [
-          /* @__PURE__ */ jsx3(ColumnIcon, { fk: col.fk }),
-          /* @__PURE__ */ jsx3("span", { style: { fontWeight: col.pk ? 600 : 400 }, children: col.name })
+        /* @__PURE__ */ jsx4("div", { style: { padding: "4px 0" }, children: columns.map((col, i) => /* @__PURE__ */ jsxs3("div", { style: { padding: "3px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 6, color: "#374151" }, children: [
+          /* @__PURE__ */ jsx4(ColumnIcon2, { fk: col.fk }),
+          /* @__PURE__ */ jsx4("span", { style: { fontWeight: col.pk ? 600 : 400 }, children: col.name })
         ] }, i)) })
       ]
     }
   );
-}
-
-// src/components/ErdCanvas.tsx
-import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
-var HEADER_HEIGHT = 33;
-var ROW_HEIGHT = 22;
-function ErdCanvas({
-  entities,
-  relations,
-  selectedEntityId,
-  onEntitySelect,
-  onEntityMove,
-  onEntityContextMenu,
-  onCanvasContextMenu,
-  onDrop,
-  fitView = true,
-  style
-}) {
-  const initialNodes = useMemo(
-    () => entities.map((ent) => ({
-      id: ent.id,
-      type: "entity",
-      position: { x: ent.x, y: ent.y },
-      data: {
-        name: ent.name,
-        columns: ent.columns,
-        onContextMenu: onEntityContextMenu ? (e) => onEntityContextMenu(ent.id, e) : void 0
-      },
-      width: 170,
-      height: HEADER_HEIGHT + ent.columns.length * ROW_HEIGHT + 8,
-      ports: buildPorts(ent.columns)
-    })),
-    [entities, onEntityContextMenu]
-  );
-  const initialEdges = useMemo(
-    () => relations.map((rel, i) => ({
-      id: rel.id || `rel-${i}`,
-      source: rel.sourceEntityId,
-      sourcePort: `fk-${rel.sourceColumnIndex}`,
-      target: rel.targetEntityId,
-      targetPort: "target",
-      type: "crowfoot"
-    })),
-    [relations]
-  );
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useCanvasHistory({ initialNodes, initialEdges });
-  const prevPositions = useRef5(/* @__PURE__ */ new Map());
-  useEffect3(() => {
-    if (!onEntityMove) return;
-    for (const node of nodes) {
-      const prev = prevPositions.current.get(node.id);
-      if (prev && (Math.abs(prev.x - node.position.x) > 1 || Math.abs(prev.y - node.position.y) > 1)) {
-        onEntityMove(node.id, node.position.x, node.position.y);
-      }
-      prevPositions.current.set(node.id, { ...node.position });
-    }
-  }, [nodes, onEntityMove]);
-  const containerRef = useRef5(null);
-  const handleDrop = useCallback5((e, position) => {
-    onDrop?.(e, position);
-  }, [onDrop]);
-  const handleContextMenu = useCallback5((e) => {
-    if (onCanvasContextMenu && !e.target.closest("[data-entity-node]")) {
-      e.preventDefault();
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        onCanvasContextMenu(e, { x: e.clientX - rect.left, y: e.clientY - rect.top });
-      }
-    }
-  }, [onCanvasContextMenu]);
-  return /* @__PURE__ */ jsx4(
-    "div",
-    {
-      ref: containerRef,
-      style: { width: "100%", height: "100%", position: "relative", ...style },
-      onContextMenu: handleContextMenu,
-      children: /* @__PURE__ */ jsx4(
-        Canvas,
-        {
-          nodes,
-          edges,
-          onNodesChange,
-          onEdgesChange,
-          onConnect,
-          onDrop: handleDrop,
-          onDragOver: (e) => e.preventDefault(),
-          nodeTypes: { entity: EntityNode },
-          edgeTypes: { crowfoot: CrowFootEdge },
-          defaultEdgeType: "crowfoot",
-          fitView,
-          style: { background: "#fff" }
-        }
-      )
-    }
-  );
-}
-function buildPorts(columns) {
-  const ports = [
-    { id: "target", type: "input", position: "left", offset: HEADER_HEIGHT / 2 }
-  ];
-  columns.forEach((col, i) => {
-    if (col.fk) {
-      ports.push({ id: `fk-${i}`, type: "output", position: "right", offset: HEADER_HEIGHT + ROW_HEIGHT * i + ROW_HEIGHT / 2 });
-    }
-  });
-  return ports;
-}
-function CrowFootEdge({ sourceX, sourceY, targetX, targetY, selected }) {
-  const color = selected ? "#2563eb" : "#374151";
-  const midX = (sourceX + targetX) / 2;
-  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
-  const dir = targetX >= sourceX ? 1 : -1;
-  const tipX = sourceX + dir * 8;
-  const len = 30;
-  return /* @__PURE__ */ jsxs3("g", { children: [
-    /* @__PURE__ */ jsx4("path", { d: path, fill: "none", stroke: "transparent", strokeWidth: 12, pointerEvents: "stroke" }),
-    /* @__PURE__ */ jsx4("path", { d: path, fill: "none", stroke: color, strokeWidth: selected ? 2.5 : 1.5 }),
-    /* @__PURE__ */ jsx4("line", { x1: tipX, y1: sourceY, x2: tipX - dir * len, y2: sourceY - 18, stroke: color, strokeWidth: 1.5 }),
-    /* @__PURE__ */ jsx4("line", { x1: tipX, y1: sourceY, x2: tipX - dir * len, y2: sourceY + 18, stroke: color, strokeWidth: 1.5 })
-  ] });
 }
 
 // src/components/Handle.tsx
@@ -1329,7 +1358,7 @@ function checkConnectable(isConnectable, node, port, connectedEdges) {
 }
 
 // src/components/nodes/NodeResizer.tsx
-import { useCallback as useCallback6, useRef as useRef6 } from "react";
+import { useCallback as useCallback5, useRef as useRef6 } from "react";
 import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
 var handlePositions = ["top-left", "top-right", "bottom-left", "bottom-right"];
 function NodeResizer({
@@ -1386,7 +1415,7 @@ function ResizeHandle({
     cursor: position === "top-left" || position === "bottom-right" ? "nwse-resize" : "nesw-resize",
     ...style
   };
-  const handleMouseDown = useCallback6((e) => {
+  const handleMouseDown = useCallback5((e) => {
     e.stopPropagation();
     e.preventDefault();
     const parent = e.target.closest(".ic-node");
@@ -1430,7 +1459,7 @@ function NodeResizeControl({
   onResize
 }) {
   const startRef = useRef6(null);
-  const handleMouseDown = useCallback6((e) => {
+  const handleMouseDown = useCallback5((e) => {
     e.stopPropagation();
     e.preventDefault();
     const parent = e.target.closest(".ic-node");
@@ -1517,11 +1546,11 @@ function getPositionStyle(position, offset, align) {
 }
 
 // src/components/nodes/RotateHandle.tsx
-import { useCallback as useCallback7, useRef as useRef7 } from "react";
+import { useCallback as useCallback6, useRef as useRef7 } from "react";
 import { jsx as jsx8 } from "react/jsx-runtime";
 function RotateHandle({ rotation = 0, onRotate, onRotateEnd, style }) {
   const centerRef = useRef7(null);
-  const handleMouseDown = useCallback7((e) => {
+  const handleMouseDown = useCallback6((e) => {
     e.stopPropagation();
     e.preventDefault();
     const node = e.target.closest(".ic-node");
@@ -1890,17 +1919,17 @@ function EdgeLabelRenderer({ children }) {
 }
 
 // src/hooks/useCanvas.ts
-import { useState as useState6, useCallback as useCallback8 } from "react";
+import { useState as useState6, useCallback as useCallback7 } from "react";
 function useCanvas(options = {}) {
   const [nodes, setNodes] = useState6(options.initialNodes || []);
   const [edges, setEdges] = useState6(options.initialEdges || []);
-  const onNodesChange = useCallback8((changes) => {
+  const onNodesChange = useCallback7((changes) => {
     setNodes((prev) => applyNodeChanges(changes, prev));
   }, []);
-  const onEdgesChange = useCallback8((changes) => {
+  const onEdgesChange = useCallback7((changes) => {
     setEdges((prev) => applyEdgeChanges(changes, prev));
   }, []);
-  const onConnect = useCallback8((connection) => {
+  const onConnect = useCallback7((connection) => {
     const newEdge = {
       id: `e-${Date.now()}`,
       source: connection.source,
@@ -1910,10 +1939,10 @@ function useCanvas(options = {}) {
     };
     setEdges((prev) => [...prev, newEdge]);
   }, []);
-  const addNode = useCallback8((node) => {
+  const addNode = useCallback7((node) => {
     setNodes((prev) => [...prev, node]);
   }, []);
-  const removeNode = useCallback8((id) => {
+  const removeNode = useCallback7((id) => {
     setNodes((prev) => prev.filter((n) => n.id !== id));
     setEdges((prev) => prev.filter((e) => e.source !== id && e.target !== id));
   }, []);
@@ -1921,19 +1950,19 @@ function useCanvas(options = {}) {
 }
 
 // src/hooks/useInteractions.ts
-import { useCallback as useCallback9, useRef as useRef9 } from "react";
+import { useCallback as useCallback8, useRef as useRef9 } from "react";
 function useInteractions({ nodes, edges, setNodes, setEdges }) {
   const connectStartRef = useRef9(null);
-  const onConnectStart = useCallback9((_event, params) => {
+  const onConnectStart = useCallback8((_event, params) => {
     connectStartRef.current = params;
   }, []);
-  const onConnectEnd = useCallback9((event) => {
+  const onConnectEnd = useCallback8((event) => {
     if (!connectStartRef.current) return null;
     const startParams = connectStartRef.current;
     connectStartRef.current = null;
     return startParams;
   }, []);
-  const onNodesDelete = useCallback9((deletedNodes) => {
+  const onNodesDelete = useCallback8((deletedNodes) => {
     for (const deleted of deletedNodes) {
       const incomers = getIncomers(deleted, nodes, edges);
       const outgoers = getOutgoers(deleted, nodes, edges);
@@ -1955,11 +1984,11 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       }
     }
   }, [nodes, edges, setEdges]);
-  const getProximityConnection = useCallback9((nodeId, position, threshold = 100) => {
+  const getProximityConnection = useCallback8((nodeId, position, threshold = 100) => {
     const otherNodes = nodes.filter((n) => n.id !== nodeId);
     return getClosestNode(position, otherNodes, threshold);
   }, [nodes]);
-  const connectToProximity = useCallback9((sourceId, targetId) => {
+  const connectToProximity = useCallback8((sourceId, targetId) => {
     const exists = edges.some(
       (e) => e.source === sourceId && e.target === targetId || e.source === targetId && e.target === sourceId
     );
@@ -1970,7 +1999,7 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       target: targetId
     }]);
   }, [edges, setEdges]);
-  const insertNodeOnEdge = useCallback9((nodeId, position, threshold = 20) => {
+  const insertNodeOnEdge = useCallback8((nodeId, position, threshold = 20) => {
     const edge = getEdgeAtPoint(position, edges, nodes, threshold, nodeId);
     if (!edge) return false;
     setEdges((prev) => {
@@ -1995,26 +2024,26 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
 }
 
 // src/hooks/useEasyConnect.ts
-import { useCallback as useCallback10, useRef as useRef10 } from "react";
+import { useCallback as useCallback9, useRef as useRef10 } from "react";
 function useEasyConnect({ onConnect }) {
   const connectingFrom = useRef10(null);
-  const onNodeMouseDown = useCallback10((e, node) => {
+  const onNodeMouseDown = useCallback9((e, node) => {
     const target = e.target;
     if (target.closest(".drag-handle") || target.closest(".nodrag")) return;
     connectingFrom.current = node.id;
   }, []);
-  const onNodeMouseUp = useCallback10((_e, node) => {
+  const onNodeMouseUp = useCallback9((_e, node) => {
     if (connectingFrom.current && connectingFrom.current !== node.id) {
       onConnect?.({ source: connectingFrom.current, target: node.id });
     }
     connectingFrom.current = null;
   }, [onConnect]);
-  const isConnecting = useCallback10(() => connectingFrom.current !== null, []);
+  const isConnecting = useCallback9(() => connectingFrom.current !== null, []);
   return { onNodeMouseDown, onNodeMouseUp, isConnecting };
 }
 
 // src/hooks/useAutoLayout.ts
-import { useCallback as useCallback11 } from "react";
+import { useCallback as useCallback10 } from "react";
 function useAutoLayout(options = {}) {
   const {
     direction = "TB",
@@ -2023,7 +2052,7 @@ function useAutoLayout(options = {}) {
     horizontalSpacing = 60,
     verticalSpacing = 80
   } = options;
-  const getLayoutedNodes = useCallback11((nodes, edges) => {
+  const getLayoutedNodes = useCallback10((nodes, edges) => {
     if (nodes.length === 0) return [];
     const children = /* @__PURE__ */ new Map();
     const parents = /* @__PURE__ */ new Map();
@@ -2091,7 +2120,7 @@ export {
   DefaultConnectionLine,
   DefaultNode2 as DefaultNode,
   EdgeLabelRenderer,
-  EntityNode,
+  EntityNode2 as EntityNode,
   ErdCanvas,
   Handle,
   MiniMapInner,
