@@ -518,4 +518,23 @@ declare function getOrthogonalPath(source: Point, target: Point, sourceDir: 'top
  */
 declare function nodesToObstacles(nodes: Node[], excludeIds?: string[]): Rect[];
 
-export { AnimatedEdge, BaseEdge, BezierEdge, Canvas, type CanvasProps, type ConnectableParams, type Connection, type ConnectionLineProps, DefaultConnectionLine, DefaultNode, type Edge, type EdgeChange, EdgeLabelRenderer, type EdgeProps, type EdgeType, type EdgeTypeMap, type EntityColumn, EntityNode, type EntityNodeData, ErdCanvas, type ErdCanvasProps, type ErdEntity, type EntityColumn$1 as ErdEntityColumn, type ErdRelation, Handle, MiniMapInner, type Node, type NodeChange, type NodeProps, NodeResizeControl, NodeResizer, NodeToolbar, type NodeTypeMap, OrthogonalEdge, type Point, type Port, RotateHandle, SHAPE_SIZE, ShapeNode, type ShapeNodeData, type ShapeType, SmoothStepEdge, StepEdge, StraightEdge, type Viewport, applyEdgeChanges, applyNodeChanges, checkConnectable, getBezierPath, getClosestNode, getConnectedEdges, getEdgeAtPoint, getIncomers, getIntersectingNodes, getOrthogonalPath, getOutgoers, getPortPosition, getSmartBezierPath, getStepPath, getStraightPath, initCanvas, isIntersecting, nodesToObstacles, pointToSegmentDistance, shapePaths, useAutoLayout, useCanvas, useCanvasHistory, useCopyPaste, useEasyConnect, useInteractions, useViewport };
+/**
+ * Tool binding edge 스타일 상수
+ */
+declare const TOOL_BINDING_STYLE: {
+    readonly stroke: "#f59e0b";
+    readonly strokeWidth: 1.5;
+    readonly strokeDasharray: "6 3";
+};
+/**
+ * Agent 노드에서 나가는 edge를 분류한다.
+ * - 첫 번째 edge = flow (실선)
+ * - 두 번째부터 = tool_binding (점선)
+ */
+declare function classifyAgentEdges(edges: Edge[], nodes: Node[], agentNodeTypes?: string[]): Edge[];
+/**
+ * Agent 노드의 tool_bindings를 edge 목록에서 추출한다.
+ */
+declare function getToolBindings(edges: Edge[], agentNodeId: string): string[];
+
+export { AnimatedEdge, BaseEdge, BezierEdge, Canvas, type CanvasProps, type ConnectableParams, type Connection, type ConnectionLineProps, DefaultConnectionLine, DefaultNode, type Edge, type EdgeChange, EdgeLabelRenderer, type EdgeProps, type EdgeType, type EdgeTypeMap, type EntityColumn, EntityNode, type EntityNodeData, ErdCanvas, type ErdCanvasProps, type ErdEntity, type EntityColumn$1 as ErdEntityColumn, type ErdRelation, Handle, MiniMapInner, type Node, type NodeChange, type NodeProps, NodeResizeControl, NodeResizer, NodeToolbar, type NodeTypeMap, OrthogonalEdge, type Point, type Port, RotateHandle, SHAPE_SIZE, ShapeNode, type ShapeNodeData, type ShapeType, SmoothStepEdge, StepEdge, StraightEdge, TOOL_BINDING_STYLE, type Viewport, applyEdgeChanges, applyNodeChanges, checkConnectable, classifyAgentEdges, getBezierPath, getClosestNode, getConnectedEdges, getEdgeAtPoint, getIncomers, getIntersectingNodes, getOrthogonalPath, getOutgoers, getPortPosition, getSmartBezierPath, getStepPath, getStraightPath, getToolBindings, initCanvas, isIntersecting, nodesToObstacles, pointToSegmentDistance, shapePaths, useAutoLayout, useCanvas, useCanvasHistory, useCopyPaste, useEasyConnect, useInteractions, useViewport };

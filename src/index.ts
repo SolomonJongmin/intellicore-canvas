@@ -34,6 +34,7 @@ export { getBezierPath, getStraightPath, getStepPath, getPortPosition, getSmartB
 export { applyNodeChanges, applyEdgeChanges } from './utils/changes';
 export { getConnectedEdges, getIncomers, getOutgoers, isIntersecting, getIntersectingNodes, getClosestNode, pointToSegmentDistance, getEdgeAtPoint } from './utils/graph';
 export { getOrthogonalPath, nodesToObstacles } from './utils/routing';
+export { classifyAgentEdges, getToolBindings, TOOL_BINDING_STYLE } from './utils/agent';
 
 // Types
 export type {

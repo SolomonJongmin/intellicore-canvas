@@ -762,9 +762,9 @@ function Canvas({
         {
           d: path,
           fill: "none",
-          stroke: edge.selected ? "#2563eb" : "#b0b8c4",
-          strokeWidth: edge.selected ? 1.5 : 1,
-          strokeDasharray: edge.animated ? "5 5" : void 0,
+          stroke: edge.selected ? "#2563eb" : edge.style?.stroke || "#b0b8c4",
+          strokeWidth: edge.selected ? 1.5 : edge.style?.strokeWidth || 1,
+          strokeDasharray: edge.animated ? "5 5" : edge.style?.strokeDasharray || void 0,
           markerEnd: edge.selected ? "url(#ic-arrow-selected)" : "url(#ic-arrow)",
           pointerEvents: "none",
           children: edge.animated && /* @__PURE__ */ jsx2("animate", { attributeName: "stroke-dashoffset", from: "10", to: "0", dur: "0.5s", repeatCount: "indefinite" })
@@ -2112,6 +2112,42 @@ function useAutoLayout(options = {}) {
   }, [direction, nodeWidth, nodeHeight, horizontalSpacing, verticalSpacing]);
   return { getLayoutedNodes };
 }
+
+// src/utils/agent.ts
+var TOOL_BINDING_STYLE = {
+  stroke: "#f59e0b",
+  strokeWidth: 1.5,
+  strokeDasharray: "6 3"
+};
+function classifyAgentEdges(edges, nodes, agentNodeTypes = ["agent"]) {
+  const agentIds = new Set(
+    nodes.filter((n) => agentNodeTypes.includes(n.type)).map((n) => n.id)
+  );
+  const agentOutEdges = /* @__PURE__ */ new Map();
+  for (const edge of edges) {
+    if (agentIds.has(edge.source)) {
+      const list = agentOutEdges.get(edge.source) || [];
+      list.push(edge);
+      agentOutEdges.set(edge.source, list);
+    }
+  }
+  return edges.map((edge) => {
+    if (!agentIds.has(edge.source)) return edge;
+    const outList = agentOutEdges.get(edge.source) || [];
+    const idx = outList.indexOf(edge);
+    if (idx === 0) {
+      return { ...edge, data: { ...edge.data, edgeType: "flow" } };
+    }
+    return {
+      ...edge,
+      style: { ...edge.style, ...TOOL_BINDING_STYLE },
+      data: { ...edge.data, edgeType: "tool_binding" }
+    };
+  });
+}
+function getToolBindings(edges, agentNodeId) {
+  return edges.filter((e) => e.source === agentNodeId && e.data?.edgeType === "tool_binding").map((e) => e.target);
+}
 export {
   AnimatedEdge,
   BaseEdge,
@@ -2134,9 +2170,11 @@ export {
   SmoothStepEdge,
   StepEdge,
   StraightEdge,
+  TOOL_BINDING_STYLE,
   applyEdgeChanges,
   applyNodeChanges,
   checkConnectable,
+  classifyAgentEdges,
   getBezierPath,
   getClosestNode,
   getConnectedEdges,
@@ -2149,6 +2187,7 @@ export {
   getSmartBezierPath,
   getStepPath,
   getStraightPath,
+  getToolBindings,
   initCanvas,
   isIntersecting,
   nodesToObstacles,

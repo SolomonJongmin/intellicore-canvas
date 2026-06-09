@@ -568,9 +568,9 @@ export function Canvas({
         <path
           d={path}
           fill="none"
-          stroke={edge.selected ? '#2563eb' : '#b0b8c4'}
-          strokeWidth={edge.selected ? 1.5 : 1}
-          strokeDasharray={edge.animated ? '5 5' : undefined}
+          stroke={edge.selected ? '#2563eb' : (edge.style?.stroke as string) || '#b0b8c4'}
+          strokeWidth={edge.selected ? 1.5 : (edge.style?.strokeWidth as number) || 1}
+          strokeDasharray={edge.animated ? '5 5' : (edge.style?.strokeDasharray as string) || undefined}
           markerEnd={edge.selected ? 'url(#ic-arrow-selected)' : 'url(#ic-arrow)'}
           pointerEvents="none"
         >
