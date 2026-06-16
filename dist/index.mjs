@@ -372,7 +372,7 @@ function Canvas({
     e.stopPropagation();
     if (e.button !== 0) return;
     const target = e.target;
-    if (isNoDrag(target)) {
+    if (isNoDrag(target) && !target.closest(".drag-handle")) {
       if (!containerRef.current) return;
       const rect2 = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(e.clientX - rect2.left, e.clientY - rect2.top);

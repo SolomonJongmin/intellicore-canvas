@@ -108,8 +108,8 @@ export function Canvas({
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
 
-    // Check nodrag — start connection instead
-    if (isNoDrag(target)) {
+    // Check nodrag — start connection instead (unless on a drag-handle)
+    if (isNoDrag(target) && !target.closest('.drag-handle')) {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
