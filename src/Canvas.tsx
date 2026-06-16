@@ -285,9 +285,10 @@ export function Canvas({
           };
           const edge = getEdgeAtPoint(center, edges, nodes, threshold, draggedNode.id);
           if (edge) {
+            const { id: _id, target: _target, ...inherited } = edge;
             onEdgesChange?.([
               { type: 'remove', id: edge.id },
-              { type: 'add', edge: { id: `e-${edge.source}-${draggedNode.id}-${Date.now()}`, source: edge.source, target: draggedNode.id } },
+              { type: 'add', edge: { ...inherited, id: `e-${edge.source}-${draggedNode.id}-${Date.now()}`, source: edge.source, target: draggedNode.id } },
               { type: 'add', edge: { id: `e-${draggedNode.id}-${edge.target}-${Date.now() + 1}`, source: draggedNode.id, target: edge.target } },
             ]);
           }

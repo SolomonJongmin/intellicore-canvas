@@ -594,9 +594,10 @@ function Canvas({
           };
           const edge = getEdgeAtPoint(center, edges, nodes, threshold, draggedNode.id);
           if (edge) {
+            const { id: _id, target: _target, ...inherited } = edge;
             onEdgesChange?.([
               { type: "remove", id: edge.id },
-              { type: "add", edge: { id: `e-${edge.source}-${draggedNode.id}-${Date.now()}`, source: edge.source, target: draggedNode.id } },
+              { type: "add", edge: { ...inherited, id: `e-${edge.source}-${draggedNode.id}-${Date.now()}`, source: edge.source, target: draggedNode.id } },
               { type: "add", edge: { id: `e-${draggedNode.id}-${edge.target}-${Date.now() + 1}`, source: draggedNode.id, target: edge.target } }
             ]);
           }
@@ -2044,11 +2045,16 @@ function useInteractions({ nodes, edges, setNodes, setEdges }) {
       const outgoers = getOutgoers(deleted, nodes, edges);
       const newEdges = [];
       for (const incomer of incomers) {
+        const incomingEdge = edges.find((e) => e.source === incomer.id && e.target === deleted.id);
         for (const outgoer of outgoers) {
           newEdges.push({
             id: `e-${incomer.id}-${outgoer.id}-${Date.now()}`,
             source: incomer.id,
-            target: outgoer.id
+            target: outgoer.id,
+            ...incomingEdge?.sourcePort && { sourcePort: incomingEdge.sourcePort },
+            ...incomingEdge?.label && { label: incomingEdge.label },
+            ...incomingEdge?.style && { style: incomingEdge.style },
+            ...incomingEdge?.data && { data: incomingEdge.data }
           });
         }
       }

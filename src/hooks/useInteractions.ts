@@ -40,11 +40,16 @@ export function useInteractions({ nodes, edges, setNodes, setEdges }: UseInterac
       // Create new edges from each incomer to each outgoer
       const newEdges: Edge[] = [];
       for (const incomer of incomers) {
+        const incomingEdge = edges.find((e) => e.source === incomer.id && e.target === deleted.id);
         for (const outgoer of outgoers) {
           newEdges.push({
             id: `e-${incomer.id}-${outgoer.id}-${Date.now()}`,
             source: incomer.id,
             target: outgoer.id,
+            ...(incomingEdge?.sourcePort && { sourcePort: incomingEdge.sourcePort }),
+            ...(incomingEdge?.label && { label: incomingEdge.label }),
+            ...(incomingEdge?.style && { style: incomingEdge.style }),
+            ...(incomingEdge?.data && { data: incomingEdge.data }),
           });
         }
       }
