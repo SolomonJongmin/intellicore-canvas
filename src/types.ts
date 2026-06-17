@@ -145,6 +145,7 @@ export interface CanvasProps {
   onDragOver?: (event: React.DragEvent) => void;
   onNodesDelete?: (nodes: Node[]) => void;
   onEdgesDelete?: (edges: Edge[]) => void;
+  deleteKeyCode?: string | string[] | null;
   onNodeDragStop?: (event: MouseEvent, node: Node) => void;
   onReconnect?: (oldEdge: Edge, newConnection: Connection) => void;
   onReconnectStart?: (event: MouseEvent, edge: Edge) => void;

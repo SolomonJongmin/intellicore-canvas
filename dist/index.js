@@ -399,6 +399,7 @@ function Canvas({
   minZoom = 0.1,
   maxZoom = 4,
   fitView: fitViewProp = false,
+  deleteKeyCode = "Delete",
   className,
   style,
   children
@@ -648,16 +649,19 @@ function Canvas({
     const el = containerRef.current;
     if (!el) return;
     const handleKeyDown = (e) => {
-      if (e.key === "Delete" || e.key === "Backspace") {
-        const sn = nodes.filter((n) => n.selected);
-        const se = edges.filter((ed) => ed.selected);
-        if (sn.length) {
-          onNodesDelete?.(sn);
-          onNodesChange?.(sn.map((n) => ({ type: "remove", id: n.id })));
-        }
-        if (se.length) {
-          onEdgesDelete?.(se);
-          onEdgesChange?.(se.map((ed) => ({ type: "remove", id: ed.id })));
+      if (deleteKeyCode !== null) {
+        const codes = Array.isArray(deleteKeyCode) ? deleteKeyCode : [deleteKeyCode];
+        if (codes.includes(e.key)) {
+          const sn = nodes.filter((n) => n.selected);
+          const se = edges.filter((ed) => ed.selected);
+          if (sn.length) {
+            onNodesDelete?.(sn);
+            onNodesChange?.(sn.map((n) => ({ type: "remove", id: n.id })));
+          }
+          if (se.length) {
+            onEdgesDelete?.(se);
+            onEdgesChange?.(se.map((ed) => ({ type: "remove", id: ed.id })));
+          }
         }
       }
       if (e.key === "a" && (e.ctrlKey || e.metaKey)) {
@@ -667,7 +671,32 @@ function Canvas({
     };
     el.addEventListener("keydown", handleKeyDown);
     return () => el.removeEventListener("keydown", handleKeyDown);
-  }, [nodes, edges, onNodesChange, onEdgesChange, onNodesDelete, onEdgesDelete]);
+  }, [nodes, edges, onNodesChange, onEdgesChange, onNodesDelete, onEdgesDelete, deleteKeyCode]);
+  (0, import_react3.useEffect)(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const rect = el.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        setViewport((v) => {
+          const newZoom = Math.min(maxZoom, Math.max(minZoom, v.zoom * delta));
+          return {
+            x: mx - (mx - v.x) * (newZoom / v.zoom),
+            y: my - (my - v.y) * (newZoom / v.zoom),
+            zoom: newZoom
+          };
+        });
+      } else {
+        setViewport((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [minZoom, maxZoom, setViewport]);
   const handleCanvasDrop = (0, import_react3.useCallback)((e) => {
     e.preventDefault();
     if (!onDrop) return;
@@ -883,7 +912,6 @@ function Canvas({
       className: `ic-canvas ${className || ""}`,
       tabIndex: 0,
       style: { position: "relative", overflow: "hidden", width: "100%", height: "100%", background: "#fafafa", outline: "none", userSelect: "none", ...style },
-      onWheel: handleWheel,
       onMouseDown: handlePaneMouseDown,
       onMouseMove: handleMouseMove,
       onMouseUp: handleMouseUp,
