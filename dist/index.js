@@ -245,6 +245,8 @@ function getPortPosition(nodePos, nodeWidth, nodeHeight, portPosition, offset = 
       return { x: nodePos.x, y: nodePos.y + nodeHeight * offset };
     case "right":
       return { x: nodePos.x + nodeWidth, y: nodePos.y + nodeHeight * offset };
+    case "center":
+      return { x: nodePos.x + nodeWidth * 0.5, y: nodePos.y + nodeHeight * 0.5 };
   }
 }
 function getSmartBezierPath(source, target, sourceDir, targetDir) {
@@ -932,14 +934,14 @@ function Canvas({
               const sourceNode = nodes.find((n) => n.id === connecting.sourceId);
               if (!sourceNode) return null;
               const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
-              const start = getPortPosition(sourceNode.position, sw, sh, "bottom");
+              const start = getPortPosition(sourceNode.position, sw, sh, "center");
               return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ConnectionLineComponent, { fromX: start.x, fromY: start.y, toX: connecting.mouse.x, toY: connecting.mouse.y, fromPosition: "bottom" });
             })(),
             reconnecting && (() => {
               const sourceNode = nodes.find((n) => n.id === reconnecting.edge.source);
               if (!sourceNode) return null;
               const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
-              const start = getPortPosition(sourceNode.position, sw, sh, "bottom");
+              const start = getPortPosition(sourceNode.position, sw, sh, "center");
               return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ConnectionLineComponent, { fromX: start.x, fromY: start.y, toX: reconnecting.mouse.x, toY: reconnecting.mouse.y, fromPosition: "bottom" });
             })(),
             lasso && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(

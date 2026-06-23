@@ -483,7 +483,7 @@ declare function useAutoLayout(options?: UseAutoLayoutOptions): {
 declare function getBezierPath(source: Point, target: Point): string;
 declare function getStraightPath(source: Point, target: Point): string;
 declare function getStepPath(source: Point, target: Point): string;
-declare function getPortPosition(nodePos: Point, nodeWidth: number, nodeHeight: number, portPosition: 'top' | 'bottom' | 'left' | 'right', offset?: number): Point;
+declare function getPortPosition(nodePos: Point, nodeWidth: number, nodeHeight: number, portPosition: 'top' | 'bottom' | 'left' | 'right' | 'center', offset?: number): Point;
 declare function getSmartBezierPath(source: Point, target: Point, sourceDir: 'top' | 'bottom' | 'left' | 'right', targetDir: 'top' | 'bottom' | 'left' | 'right'): string;
 
 declare function applyNodeChanges(changes: NodeChange[], nodes: Node[]): Node[];

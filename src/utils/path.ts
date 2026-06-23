@@ -18,7 +18,7 @@ export function getPortPosition(
   nodePos: Point,
   nodeWidth: number,
   nodeHeight: number,
-  portPosition: 'top' | 'bottom' | 'left' | 'right',
+  portPosition: 'top' | 'bottom' | 'left' | 'right' | 'center',
   offset = 0.5,
 ): Point {
   switch (portPosition) {
@@ -26,6 +26,7 @@ export function getPortPosition(
     case 'bottom': return { x: nodePos.x + nodeWidth * offset, y: nodePos.y + nodeHeight };
     case 'left': return { x: nodePos.x, y: nodePos.y + nodeHeight * offset };
     case 'right': return { x: nodePos.x + nodeWidth, y: nodePos.y + nodeHeight * offset };
+    case 'center': return { x: nodePos.x + nodeWidth * 0.5, y: nodePos.y + nodeHeight * 0.5 };
   }
 }
 

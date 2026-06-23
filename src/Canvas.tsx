@@ -675,7 +675,7 @@ export function Canvas({
             const sourceNode = nodes.find((n) => n.id === connecting.sourceId);
             if (!sourceNode) return null;
             const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
-            const start = getPortPosition(sourceNode.position, sw, sh, 'bottom');
+            const start = getPortPosition(sourceNode.position, sw, sh, 'center');
             return <ConnectionLineComponent fromX={start.x} fromY={start.y} toX={connecting.mouse.x} toY={connecting.mouse.y} fromPosition="bottom" />;
           })()}
           {/* Reconnecting line */}
@@ -683,7 +683,7 @@ export function Canvas({
             const sourceNode = nodes.find((n) => n.id === reconnecting.edge.source);
             if (!sourceNode) return null;
             const sw = sourceNode.width || 140, sh = sourceNode.height || 40;
-            const start = getPortPosition(sourceNode.position, sw, sh, 'bottom');
+            const start = getPortPosition(sourceNode.position, sw, sh, 'center');
             return <ConnectionLineComponent fromX={start.x} fromY={start.y} toX={reconnecting.mouse.x} toY={reconnecting.mouse.y} fromPosition="bottom" />;
           })()}
           {/* Lasso rect */}
