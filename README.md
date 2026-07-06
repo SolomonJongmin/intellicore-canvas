@@ -7,7 +7,7 @@
 ## 설치
 
 ```bash
-npm install @intellicore/visual-canvas
+npm install intellicore-visual-canvas
 ```
 
 ## 빠른 시작
@@ -149,4 +149,4 @@ npm run dev
 
 ## 라이선스
 
-UNLICENSED — 비공개 프로젝트. 무단 사용, 복제, 배포 금지.
+MIT © [SolomonJongmin](https://github.com/SolomonJongmin)
