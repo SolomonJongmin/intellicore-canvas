@@ -68,6 +68,9 @@ export function Canvas({
   // Edge reconnect state
   const [reconnecting, setReconnecting] = useState<{ edge: Edge; mouse: Point } | null>(null);
 
+  // Node resize state
+  const resizing = useRef<{ nodeId: string; startX: number; startY: number; startW: number; startH: number } | null>(null);
+
   // fitView on mount
   useEffect(() => {
     if (!fitViewProp || didFitView.current || nodes.length === 0) return;
@@ -142,6 +145,18 @@ export function Canvas({
     onNodeClick?.(e as any, node);
   }, [screenToCanvas, onNodesChange, onNodeClick, onConnectStart, nodes, isDragHandle, isNoDrag]);
 
+  const handleResizeMouseDown = useCallback((e: MouseEvent, node: Node) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizing.current = {
+      nodeId: node.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: node.width || 200,
+      startH: node.height || 150,
+    };
+  }, []);
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     handlePanMove(e);
     if (!containerRef.current) return;
@@ -178,6 +193,16 @@ export function Canvas({
       return;
     }
 
+    // Node resize
+    if (resizing.current) {
+      const dx = (e.clientX - resizing.current.startX) / viewport.zoom;
+      const dy = (e.clientY - resizing.current.startY) / viewport.zoom;
+      const newW = Math.max(120, resizing.current.startW + dx);
+      const newH = Math.max(80, resizing.current.startH + dy);
+      onNodesChange?.([{ type: 'dimensions', id: resizing.current.nodeId, width: newW, height: newH }]);
+      return;
+    }
+
     // Node drag
     if (!dragNodeId.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -203,6 +228,11 @@ export function Canvas({
   }, [handlePanMove, screenToCanvas, snapToGrid, gridSize, onNodesChange, nodes, connecting, reconnecting]);
 
   const handleMouseUp = useCallback((e: MouseEvent) => {
+    // Finish resize
+    if (resizing.current) {
+      resizing.current = null;
+      return;
+    }
     // Finish lasso
     if (lassoStart.current && lasso) {
       const minX = Math.min(lasso.start.x, lasso.end.x);
@@ -689,6 +719,12 @@ export function Canvas({
                 ? <NodeComponent id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} width={node.width} height={node.height} rotation={node.rotation} dragHandle={node.dragHandle} />
                 : <DefaultNode id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} onPortMouseDown={handlePortMouseDown} />
               }
+              {node.resizable && (
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e as any, node)}
+                  style={{ position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, cursor: 'nwse-resize', background: 'transparent' }}
+                />
+              )}
             </div>
           );
         })}
@@ -771,6 +807,12 @@ export function Canvas({
                 ? <NodeComponent id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} width={node.width} height={node.height} rotation={node.rotation} dragHandle={node.dragHandle} />
                 : <DefaultNode id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} onPortMouseDown={handlePortMouseDown} />
               }
+              {node.resizable && (
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e as any, node)}
+                  style={{ position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, cursor: 'nwse-resize', background: 'transparent' }}
+                />
+              )}
             </div>
           );
         })}

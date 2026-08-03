@@ -1,6 +1,6 @@
 {
   "name": "intellicore-visual-canvas",
-  "version": "0.1.43",
+  "version": "0.1.44",
   "description": "Visual canvas engine for flow editors, ERD diagrams, and node-based UIs",
   "license": "MIT",
   "repository": {

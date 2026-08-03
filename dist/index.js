@@ -418,6 +418,7 @@ function Canvas({
   const lassoOrigin = (0, import_react3.useRef)(null);
   const [connecting, setConnecting] = (0, import_react3.useState)(null);
   const [reconnecting, setReconnecting] = (0, import_react3.useState)(null);
+  const resizing = (0, import_react3.useRef)(null);
   (0, import_react3.useEffect)(() => {
     if (!fitViewProp || didFitView.current || nodes.length === 0) return;
     didFitView.current = true;
@@ -478,6 +479,17 @@ function Canvas({
     }
     onNodeClick?.(e, node);
   }, [screenToCanvas, onNodesChange, onNodeClick, onConnectStart, nodes, isDragHandle, isNoDrag]);
+  const handleResizeMouseDown = (0, import_react3.useCallback)((e, node) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizing.current = {
+      nodeId: node.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: node.width || 200,
+      startH: node.height || 150
+    };
+  }, []);
   const handleMouseMove = (0, import_react3.useCallback)((e) => {
     handlePanMove(e);
     if (!containerRef.current) return;
@@ -507,6 +519,14 @@ function Canvas({
       setReconnecting({ ...reconnecting, mouse: pos });
       return;
     }
+    if (resizing.current) {
+      const dx2 = (e.clientX - resizing.current.startX) / viewport.zoom;
+      const dy2 = (e.clientY - resizing.current.startY) / viewport.zoom;
+      const newW = Math.max(120, resizing.current.startW + dx2);
+      const newH = Math.max(80, resizing.current.startH + dy2);
+      onNodesChange?.([{ type: "dimensions", id: resizing.current.nodeId, width: newW, height: newH }]);
+      return;
+    }
     if (!dragNodeId.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const canvasPos = screenToCanvas(e.clientX - rect.left, e.clientY - rect.top);
@@ -528,6 +548,10 @@ function Canvas({
     }
   }, [handlePanMove, screenToCanvas, snapToGrid, gridSize, onNodesChange, nodes, connecting, reconnecting]);
   const handleMouseUp = (0, import_react3.useCallback)((e) => {
+    if (resizing.current) {
+      resizing.current = null;
+      return;
+    }
     if (lassoStart.current && lasso) {
       const minX = Math.min(lasso.start.x, lasso.end.x);
       const maxX = Math.max(lasso.start.x, lasso.end.x);
@@ -931,7 +955,7 @@ function Canvas({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "ic-canvas-pane ic-canvas-bg-nodes", style: { position: "absolute", inset: 0, transform, transformOrigin: "0 0", pointerEvents: "none" }, children: nodes.filter((n) => (n.zIndex ?? 0) < 0).map((node) => {
           const NodeComponent = nodeTypes[node.type];
           const rotation = node.rotation || 0;
-          return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
             "div",
             {
               className: `ic-node ${node.selected ? "ic-node-selected" : ""}`,
@@ -948,7 +972,16 @@ function Canvas({
               },
               onMouseDown: (e) => handleNodeMouseDown(e, node),
               onDoubleClick: (e) => onNodeDoubleClick?.(e, node),
-              children: NodeComponent ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NodeComponent, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], width: node.width, height: node.height, rotation: node.rotation, dragHandle: node.dragHandle }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DefaultNode, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], onPortMouseDown: handlePortMouseDown })
+              children: [
+                NodeComponent ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NodeComponent, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], width: node.width, height: node.height, rotation: node.rotation, dragHandle: node.dragHandle }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DefaultNode, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], onPortMouseDown: handlePortMouseDown }),
+                node.resizable && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "div",
+                  {
+                    onMouseDown: (e) => handleResizeMouseDown(e, node),
+                    style: { position: "absolute", right: 0, bottom: 0, width: 12, height: 12, cursor: "nwse-resize", background: "transparent" }
+                  }
+                )
+              ]
             },
             node.id
           );
@@ -995,7 +1028,7 @@ function Canvas({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "ic-canvas-pane", style: { position: "absolute", inset: 0, transform, transformOrigin: "0 0", pointerEvents: "none" }, children: nodes.filter((n) => (n.zIndex ?? 0) >= 0).map((node) => {
           const NodeComponent = nodeTypes[node.type];
           const rotation = node.rotation || 0;
-          return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
             "div",
             {
               className: `ic-node ${node.selected ? "ic-node-selected" : ""}`,
@@ -1013,7 +1046,16 @@ function Canvas({
               },
               onMouseDown: (e) => handleNodeMouseDown(e, node),
               onDoubleClick: (e) => onNodeDoubleClick?.(e, node),
-              children: NodeComponent ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NodeComponent, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], width: node.width, height: node.height, rotation: node.rotation, dragHandle: node.dragHandle }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DefaultNode, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], onPortMouseDown: handlePortMouseDown })
+              children: [
+                NodeComponent ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NodeComponent, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], width: node.width, height: node.height, rotation: node.rotation, dragHandle: node.dragHandle }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DefaultNode, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], onPortMouseDown: handlePortMouseDown }),
+                node.resizable && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "div",
+                  {
+                    onMouseDown: (e) => handleResizeMouseDown(e, node),
+                    style: { position: "absolute", right: 0, bottom: 0, width: 12, height: 12, cursor: "nwse-resize", background: "transparent" }
+                  }
+                )
+              ]
             },
             node.id
           );
