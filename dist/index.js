@@ -547,7 +547,7 @@ function Canvas({
       const target = nodes.find((n) => {
         const w = n.width || 140;
         const h = n.height || 40;
-        return connecting.mouse.x >= n.position.x && connecting.mouse.x <= n.position.x + w && connecting.mouse.y >= n.position.y && connecting.mouse.y <= n.position.y + h && n.id !== connecting.sourceId;
+        return connecting.mouse.x >= n.position.x && connecting.mouse.x <= n.position.x + w && connecting.mouse.y >= n.position.y && connecting.mouse.y <= n.position.y + h && n.id !== connecting.sourceId && n.type !== "sticky_note";
       });
       if (target && onConnect) {
         const targetEl = document.querySelector(`[data-id="${target.id}"]`);
@@ -579,7 +579,7 @@ function Canvas({
       const target = nodes.find((n) => {
         const w = n.width || 140;
         const h = n.height || 40;
-        return reconnecting.mouse.x >= n.position.x && reconnecting.mouse.x <= n.position.x + w && reconnecting.mouse.y >= n.position.y && reconnecting.mouse.y <= n.position.y + h && n.id !== reconnecting.edge.source;
+        return reconnecting.mouse.x >= n.position.x && reconnecting.mouse.x <= n.position.x + w && reconnecting.mouse.y >= n.position.y && reconnecting.mouse.y <= n.position.y + h && n.id !== reconnecting.edge.source && n.type !== "sticky_note";
       });
       if (target) {
         const reconn = { source: reconnecting.edge.source, target: target.id };
@@ -596,7 +596,7 @@ function Canvas({
     if (dragNodeId.current) {
       const draggedNode = nodes.find((n) => n.id === dragNodeId.current);
       if (draggedNode) {
-        if (dropOnEdge) {
+        if (dropOnEdge && draggedNode.type !== "sticky_note") {
           const threshold = typeof dropOnEdge === "number" ? dropOnEdge : 20;
           const center = {
             x: draggedNode.position.x + (draggedNode.width || 140) / 2,
