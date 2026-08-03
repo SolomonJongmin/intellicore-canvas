@@ -928,6 +928,31 @@ function Canvas({
       onDrop: handleCanvasDrop,
       onDragOver: handleCanvasDragOver,
       children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "ic-canvas-pane ic-canvas-bg-nodes", style: { position: "absolute", inset: 0, transform, transformOrigin: "0 0", pointerEvents: "none" }, children: nodes.filter((n) => (n.zIndex ?? 0) < 0).map((node) => {
+          const NodeComponent = nodeTypes[node.type];
+          const rotation = node.rotation || 0;
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "div",
+            {
+              className: `ic-node ${node.selected ? "ic-node-selected" : ""}`,
+              style: {
+                position: "absolute",
+                left: node.position.x,
+                top: node.position.y,
+                width: node.width,
+                height: node.height,
+                cursor: "grab",
+                transform: rotation ? `rotate(${rotation}deg)` : void 0,
+                transformOrigin: "center center",
+                pointerEvents: "auto"
+              },
+              onMouseDown: (e) => handleNodeMouseDown(e, node),
+              onDoubleClick: (e) => onNodeDoubleClick?.(e, node),
+              children: NodeComponent ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NodeComponent, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], width: node.width, height: node.height, rotation: node.rotation, dragHandle: node.dragHandle }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DefaultNode, { id: node.id, data: node.data, selected: !!node.selected, ports: node.ports || [], onPortMouseDown: handlePortMouseDown })
+            },
+            node.id
+          );
+        }) }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { style: { position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("defs", { children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pattern", { id: "ic-grid", width: gridSize * viewport.zoom, height: gridSize * viewport.zoom, patternUnits: "userSpaceOnUse", x: viewport.x % (gridSize * viewport.zoom), y: viewport.y % (gridSize * viewport.zoom), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx: "1", cy: "1", r: "1", fill: "#ddd" }) }),
@@ -967,7 +992,7 @@ function Canvas({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "ic-canvas-pane", style: { position: "absolute", inset: 0, transform, transformOrigin: "0 0", pointerEvents: "none" }, children: nodes.map((node) => {
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "ic-canvas-pane", style: { position: "absolute", inset: 0, transform, transformOrigin: "0 0", pointerEvents: "none" }, children: nodes.filter((n) => (n.zIndex ?? 0) >= 0).map((node) => {
           const NodeComponent = nodeTypes[node.type];
           const rotation = node.rotation || 0;
           return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -983,7 +1008,8 @@ function Canvas({
                 cursor: "grab",
                 transform: rotation ? `rotate(${rotation}deg)` : void 0,
                 transformOrigin: "center center",
-                pointerEvents: "auto"
+                pointerEvents: "auto",
+                zIndex: node.zIndex ?? 0
               },
               onMouseDown: (e) => handleNodeMouseDown(e, node),
               onDoubleClick: (e) => onNodeDoubleClick?.(e, node),

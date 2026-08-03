@@ -662,6 +662,37 @@ export function Canvas({
       onDrop={handleCanvasDrop}
       onDragOver={handleCanvasDragOver}
     >
+      {/* Background nodes (zIndex < 0) — rendered below edges */}
+      <div className="ic-canvas-pane ic-canvas-bg-nodes" style={{ position: 'absolute', inset: 0, transform, transformOrigin: '0 0', pointerEvents: 'none' }}>
+        {nodes.filter((n) => (n.zIndex ?? 0) < 0).map((node) => {
+          const NodeComponent = nodeTypes[node.type];
+          const rotation = node.rotation || 0;
+          return (
+            <div
+              key={node.id}
+              className={`ic-node ${node.selected ? 'ic-node-selected' : ''}`}
+              style={{
+                position: 'absolute',
+                left: node.position.x,
+                top: node.position.y,
+                width: node.width,
+                height: node.height,
+                cursor: 'grab',
+                transform: rotation ? `rotate(${rotation}deg)` : undefined,
+                transformOrigin: 'center center',
+                pointerEvents: 'auto',
+              }}
+              onMouseDown={(e) => handleNodeMouseDown(e, node)}
+              onDoubleClick={(e) => onNodeDoubleClick?.(e, node)}
+            >
+              {NodeComponent
+                ? <NodeComponent id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} width={node.width} height={node.height} rotation={node.rotation} dragHandle={node.dragHandle} />
+                : <DefaultNode id={node.id} data={node.data} selected={!!node.selected} ports={node.ports || []} onPortMouseDown={handlePortMouseDown} />
+              }
+            </div>
+          );
+        })}
+      </div>
       {/* SVG Layer */}
       <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
         <defs>
@@ -714,7 +745,7 @@ export function Canvas({
 
       {/* HTML Layer - Nodes */}
       <div className="ic-canvas-pane" style={{ position: 'absolute', inset: 0, transform, transformOrigin: '0 0', pointerEvents: 'none' }}>
-        {nodes.map((node) => {
+        {nodes.filter((n) => (n.zIndex ?? 0) >= 0).map((node) => {
           const NodeComponent = nodeTypes[node.type];
           const rotation = node.rotation || 0;
           return (
@@ -731,6 +762,7 @@ export function Canvas({
                 transform: rotation ? `rotate(${rotation}deg)` : undefined,
                 transformOrigin: 'center center',
                 pointerEvents: 'auto',
+                zIndex: node.zIndex ?? 0,
               }}
               onMouseDown={(e) => handleNodeMouseDown(e, node)}
               onDoubleClick={(e) => onNodeDoubleClick?.(e, node)}

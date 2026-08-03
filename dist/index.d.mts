@@ -41,6 +41,7 @@ interface Node<T = Record<string, unknown>> {
     dragHandle?: string;
     rotation?: number;
     resizable?: boolean;
+    zIndex?: number;
     ports?: Port[];
 }
 type EdgeType = 'bezier' | 'straight' | 'step' | 'smoothstep' | string;
