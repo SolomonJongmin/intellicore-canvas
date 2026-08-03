@@ -151,6 +151,7 @@ interface CanvasProps {
     onNodesChange?: (changes: NodeChange[]) => void;
     onEdgesChange?: (changes: EdgeChange[]) => void;
     onConnect?: (connection: Connection) => void;
+    isValidConnection?: (connection: Connection) => boolean;
     onConnectStart?: (event: MouseEvent$1, params: {
         nodeId: string;
         portId?: string;
@@ -184,7 +185,7 @@ interface CanvasProps {
     children?: ReactNode;
 }
 
-declare function Canvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onConnectStart, onConnectEnd, onNodeClick, onNodeDoubleClick, onEdgeClick, onPaneClick, onDrop, onDragOver, onNodesDelete, onEdgesDelete, onNodeDragStop, onReconnect, onReconnectStart, onReconnectEnd, nodeTypes, edgeTypes, connectionLineComponent, defaultEdgeType, snapToGrid, gridSize, dropOnEdge, minZoom, maxZoom, fitView: fitViewProp, deleteKeyCode, className, style, children, }: CanvasProps): react_jsx_runtime.JSX.Element;
+declare function Canvas({ nodes, edges, onNodesChange, onEdgesChange, onConnect, isValidConnection, onConnectStart, onConnectEnd, onNodeClick, onNodeDoubleClick, onEdgeClick, onPaneClick, onDrop, onDragOver, onNodesDelete, onEdgesDelete, onNodeDragStop, onReconnect, onReconnectStart, onReconnectEnd, nodeTypes, edgeTypes, connectionLineComponent, defaultEdgeType, snapToGrid, gridSize, dropOnEdge, minZoom, maxZoom, fitView: fitViewProp, deleteKeyCode, className, style, children, }: CanvasProps): react_jsx_runtime.JSX.Element;
 declare function MiniMapInner({ nodes, edges, viewport, containerWidth, containerHeight, width, height }: {
     nodes: Node[];
     edges: Edge[];

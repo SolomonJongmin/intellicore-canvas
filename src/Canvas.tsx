@@ -20,6 +20,7 @@ export function Canvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  isValidConnection,
   onConnectStart,
   onConnectEnd,
   onNodeClick,
@@ -246,7 +247,10 @@ export function Canvas({
             }
           });
         }
-        onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id, targetPort });
+        const conn = { source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id, targetPort };
+        if (!isValidConnection || isValidConnection(conn)) {
+          onConnect(conn);
+        }
       }
       onConnectEnd?.(e as any);
       setConnecting(null);
@@ -263,7 +267,10 @@ export function Canvas({
                n.id !== reconnecting.edge.source;
       });
       if (target) {
-        onReconnect?.(reconnecting.edge, { source: reconnecting.edge.source, target: target.id });
+        const reconn = { source: reconnecting.edge.source, target: target.id };
+        if (!isValidConnection || isValidConnection(reconn)) {
+          onReconnect?.(reconnecting.edge, reconn);
+        }
       } else {
         // Dropped on pane — delete edge
         onEdgesChange?.([{ type: 'remove', id: reconnecting.edge.id }]);

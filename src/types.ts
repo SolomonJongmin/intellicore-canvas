@@ -135,6 +135,7 @@ export interface CanvasProps {
   onNodesChange?: (changes: NodeChange[]) => void;
   onEdgesChange?: (changes: EdgeChange[]) => void;
   onConnect?: (connection: Connection) => void;
+  isValidConnection?: (connection: Connection) => boolean;
   onConnectStart?: (event: MouseEvent, params: { nodeId: string; portId?: string }) => void;
   onConnectEnd?: (event: MouseEvent) => void;
   onNodeClick?: (event: MouseEvent, node: Node) => void;

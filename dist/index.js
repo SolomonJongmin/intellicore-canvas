@@ -377,6 +377,7 @@ function Canvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  isValidConnection,
   onConnectStart,
   onConnectEnd,
   onNodeClick,
@@ -565,7 +566,10 @@ function Canvas({
             }
           });
         }
-        onConnect({ source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id, targetPort });
+        const conn = { source: connecting.sourceId, sourcePort: connecting.sourcePort, target: target.id, targetPort };
+        if (!isValidConnection || isValidConnection(conn)) {
+          onConnect(conn);
+        }
       }
       onConnectEnd?.(e);
       setConnecting(null);
@@ -578,7 +582,10 @@ function Canvas({
         return reconnecting.mouse.x >= n.position.x && reconnecting.mouse.x <= n.position.x + w && reconnecting.mouse.y >= n.position.y && reconnecting.mouse.y <= n.position.y + h && n.id !== reconnecting.edge.source;
       });
       if (target) {
-        onReconnect?.(reconnecting.edge, { source: reconnecting.edge.source, target: target.id });
+        const reconn = { source: reconnecting.edge.source, target: target.id };
+        if (!isValidConnection || isValidConnection(reconn)) {
+          onReconnect?.(reconnecting.edge, reconn);
+        }
       } else {
         onEdgesChange?.([{ type: "remove", id: reconnecting.edge.id }]);
       }
